@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h2 class="fw-bold mb-1">وضع الطالبة</h2>
+    <div class="text-muted">خطة مذاكرة + مراجعة متباعدة + مختبر القراءة العربية</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card rounded-4 shadow-sm">
+      <div class="card-body">
+        <h5 class="fw-bold mb-3">خطة مذاكرة</h5>
+
+        <div class="mb-2">
+          <label class="form-label">عنوان الخطة</label>
+          <input class="form-control" id="sTitle" value="خطة مذاكرة للامتحان">
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">تاريخ الامتحان (YYYY-MM-DD)</label>
+          <input class="form-control" id="sExamDate" placeholder="مثال: 2026-01-20">
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">ساعات المذاكرة يوميًا</label>
+          <input type="number" class="form-control" id="sHours" value="1.5" step="0.5" min="0.5" max="6">
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">اختيار صف (لملء المواد تلقائيًا)</label>
+          <select class="form-select" id="sGrade">
+            {% for g in curriculum.grades %}
+              <option value="{{ g.grade }}">{{ g.grade }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">المواد (يمكن تعديلها)</label>
+          <div id="subjectChips" class="chips"></div>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">الموضوعات (اختياري)</label>
+          <textarea class="form-control" id="sTopics" rows="6" placeholder="اكتبي موضوعاتك... مثال:
+اللغة العربية: البلاغة
+الرياضيات: المعادلات
+الحاسوب: أمن المعلومات"></textarea>
+          <div class="form-text">إذا تركتها فارغة، سيولّد وحدات افتراضية لكل مادة.</div>
+        </div>
+
+        <div class="d-grid mt-3">
+          <button class="btn btn-primary btn-lg" onclick="studentBuildPlan()">إنشاء الخطة</button>
+        </div>
+
+        <hr class="my-4">
+
+        <h5 class="fw-bold mb-2">مختبر القراءة العربية</h5>
+        <input class="form-control mb-2" id="rLabel" placeholder="عنوان النص (اختياري)">
+        <textarea class="form-control" id="rText" rows="6" placeholder="الصقي نصًا عربيًا هنا..."></textarea>
+        <div class="d-grid mt-2">
+          <button class="btn btn-success" onclick="analyzeReading()">تحليل النص</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card rounded-4 shadow-sm mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
+          <h5 class="fw-bold mb-0">الخطة</h5>
+          <button class="btn btn-outline-primary btn-sm" onclick="copyPlanJson()">نسخ JSON</button>
+        </div>
+        <div id="planBox" class="mt-3 empty-state">لم يتم إنشاء خطة بعد.</div>
+      </div>
+    </div>
+
+    <div class="card rounded-4 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
+          <h5 class="fw-bold mb-0">نتيجة تحليل القراءة</h5>
+        </div>
+        <div id="readingBox" class="mt-3 empty-state">لم يتم تحليل نص بعد.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script id="curriculumData" type="application/json">{{ curriculum|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const curriculum = JSON.parse(document.getElementById("curriculumData").textContent);
+  let selectedSubjects = [];
+  let lastPlan = null;
+
+  function refreshSubjects(){
+    const grade = document.getElementById("sGrade").value;
+    const g = curriculum.grades.find(x => x.grade === grade);
+    selectedSubjects = [...(g?.subjects || [])];
+    renderChips();
+  }
+
+  function renderChips(){
+    const box = document.getElementById("subjectChips");
+    box.innerHTML = "";
+    selectedSubjects.forEach((s, idx) => {
+      const chip = document.createElement("button");
+      chip.className = "chip";
+      chip.type = "button";
+      chip.innerHTML = `${escapeHtml(s)} <span class="x">×</span>`;
+      chip.onclick = ()=> {
+        selectedSubjects.splice(idx, 1);
+        renderChips();
+      };
+      box.appendChild(chip);
+    });
+
+    const add = document.createElement("button");
+    add.className = "chip chip-add";
+    add.type = "button";
+    add.textContent = "+ إضافة مادة";
+    add.onclick = ()=>{
+      const name = prompt("اكتبي اسم المادة:");
+      if(name && name.trim()){
+        selectedSubjects.push(name.trim());
+        renderChips();
+      }
+    }
+    box.appendChild(add);
+  }
+
+  document.getElementById("sGrade").addEventListener("change", refreshSubjects);
+  refreshSubjects();
+
+  async function studentBuildPlan(){
+    const payload = {
+      title: document.getElementById("sTitle").value,
+      exam_date: document.getElementById("sExamDate").value,
+      hours_per_day: document.getElementById("sHours").value,
+      subjects: selectedSubjects,
+      topics_text: document.getElementById("sTopics").value
+    };
+
+    setBusy(true);
+    const res = await fetch("/api/student/study-plan", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    setBusy(false);
+
+    if(!data.ok){ toast("تعذر إنشاء الخطة."); return; }
+    lastPlan = data.plan;
+    renderPlan(lastPlan);
+    toast("تم إنشاء خطة المذاكرة.");
+  }
+
+  function renderPlan(plan){
+    const box = document.getElementById("planBox");
+    box.classList.remove("empty-state");
+
+    const days = Object.keys(plan.calendar);
+    const header = `
+      <div class="mb-2">
+        <span class="badge bg-primary">من</span> ${plan.meta.start_date}
+        <span class="badge bg-danger ms-1">حتى</span> ${plan.meta.exam_date}
+        <span class="badge bg-secondary ms-1">ساعات/يوم</span> ${plan.meta.hours_per_day}
+      </div>
+      <div class="text-muted small mb-3">${plan.tips.map(x=>escapeHtml(x)).join(" — ")}</div>
+    `;
+
+    const items = days.slice(0, 21).map(d => {
+      const tasks = plan.calendar[d] || [];
+      const taskHtml = tasks.length ? tasks.map(t => `
+        <li class="mb-1">
+          <span class="badge ${t.kind==='درس'?'bg-success':'bg-warning text-dark'}">${escapeHtml(t.kind)}</span>
+          <span class="fw-semibold">${escapeHtml(t.subject)}:</span>
+          ${escapeHtml(t.task)}
+          <div class="small text-muted">${escapeHtml(t.suggestion)}</div>
+        </li>
+      `).join("") : `<li class="text-muted">يوم خفيف/راحة</li>`;
+
+      return `
+        <div class="mini-card mb-2">
+          <div class="fw-bold mb-2">${d}</div>
+          <ul class="mb-0">${taskHtml}</ul>
+        </div>
+      `;
+    }).join("");
+
+    const more = days.length > 21 ? `<div class="text-muted small">تم عرض أول 21 يومًا فقط داخل الواجهة.</div>` : "";
+
+    box.innerHTML = header + items + more;
+  }
+
+  function copyPlanJson(){
+    if(!lastPlan){ toast("لا توجد خطة لنسخها."); return; }
+    navigator.clipboard.writeText(JSON.stringify(lastPlan, null, 2))
+      .then(()=>toast("تم نسخ JSON."))
+      .catch(()=>toast("تعذر النسخ."));
+  }
+
+  async function analyzeReading(){
+    const payload = {
+      label: document.getElementById("rLabel").value || "تحليل قراءة",
+      text: document.getElementById("rText").value
+    };
+
+    setBusy(true);
+    const res = await fetch("/api/student/reading-analyze", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    setBusy(false);
+
+    if(!data.ok){ toast(data.error || "تعذر التحليل."); return; }
+    renderReading(data.result);
+    toast("تم تحليل النص.");
+  }
+
+  function renderReading(r){
+    const box = document.getElementById("readingBox");
+    box.classList.remove("empty-state");
+
+    const metrics = r.metrics || {};
+    box.innerHTML = `
+      <div class="mb-2">
+        <span class="badge ${r.difficulty==='سهل'?'bg-success':(r.difficulty==='متوسط'?'bg-warning text-dark':'bg-danger')}">
+          ${escapeHtml(r.difficulty)}
+        </span>
+      </div>
+
+      <div class="row g-2">
+        <div class="col-md-6">
+          <div class="mini-card">
+            <div class="fw-bold mb-2">مؤشرات</div>
+            <ul class="mb-0">
+              <li>عدد الجمل: ${metrics.sentences ?? "-"}</li>
+              <li>عدد الكلمات: ${metrics.words ?? "-"}</li>
+              <li>متوسط الكلمات/جملة: ${metrics.avg_words_per_sentence ?? "-"}</li>
+              <li>متوسط أحرف/كلمة: ${metrics.avg_chars_per_word ?? "-"}</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="mini-card">
+            <div class="fw-bold mb-2">كلمات قد تكون صعبة</div>
+            <div class="d-flex flex-wrap gap-2">
+              ${(r.difficult_words || []).map(w=>`<span class="pill">${escapeHtml(w)}</span>`).join("") || '<span class="text-muted small">لا توجد</span>'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mini-card mt-2">
+        <div class="fw-bold mb-2">تلخيص نقطي (مقتطف)</div>
+        <ul class="mb-0">
+          ${(r.summary_bullets || []).map(b=>`<li>${escapeHtml(b)}</li>`).join("") || '<li class="text-muted">لا يوجد</li>'}
+        </ul>
+      </div>
+
+      <div class="text-muted small mt-2">${(r.notes||[]).map(x=>escapeHtml(x)).join(" — ")}</div>
+    `;
+  }
+</script>
+{% endblock %}

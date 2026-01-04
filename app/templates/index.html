@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="hero p-4 p-md-5 rounded-4 shadow-sm">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-7">
+      <h1 class="display-6 fw-bold mb-3">منصة مدرسية ذكية للمعلمة والطالبات</h1>
+      <p class="lead mb-3">
+        تحضير درس + توليد أسئلة من النص + خطة مذاكرة + مختبر قراءة عربي + مختبر حاسوب تفاعلي.
+      </p>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="/teacher" class="btn btn-light btn-lg">ابدئي كمعلمة</a>
+        <a href="/student" class="btn btn-outline-light btn-lg">ابدئي كطالبة</a>
+        <a href="/lab" class="btn btn-outline-light btn-lg">مختبر الحاسوب</a>
+      </div>
+      <div class="mt-3 small text-white-50">
+        * ملاحظة: النتائج مساعدة وتحتاج مراجعة بشرية قبل الاعتماد النهائي.
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="glass rounded-4 p-3">
+        <div class="fw-bold mb-2">مواد نموذجية (قابلة للتعديل)</div>
+        <ul class="mb-0 small">
+          {% for g in curriculum.grades[:3] %}
+            <li class="mb-1"><span class="fw-semibold">{{ g.grade }}:</span> {{ g.subjects|join("، ") }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-4">
+  <div class="col-md-4">
+    <div class="card rounded-4 shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title fw-bold">وضع المعلمة</h5>
+        <p class="card-text">خطة درس جاهزة + توزيع وقت الحصة + أسئلة سريعة من نص الدرس.</p>
+        <a href="/teacher" class="btn btn-primary">الدخول</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card rounded-4 shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title fw-bold">وضع الطالبة</h5>
+        <p class="card-text">خطة مذاكرة حتى الامتحان + مراجعة متباعدة + تحليل صعوبة نص عربي.</p>
+        <a href="/student" class="btn btn-primary">الدخول</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card rounded-4 shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title fw-bold">مختبر الحاسوب</h5>
+        <p class="card-text">أسئلة ثقافة رقمية + اختبار يتكيف مع مستوى الطالبة.</p>
+        <a href="/lab" class="btn btn-primary">الدخول</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

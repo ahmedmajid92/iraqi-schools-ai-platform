@@ -1,0 +1,13 @@
+name: iraq-edu-ai
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - flask=3.0.*
+  - python-dotenv=1.*
+  - scikit-learn=1.*
+  - numpy=1.*
+  - pandas=2.*
+  - pip:
+      - werkzeug==3.*

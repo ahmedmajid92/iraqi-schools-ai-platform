@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h2 class="fw-bold mb-1">مختبر الحاسوب</h2>
+    <div class="text-muted">اختبار ثقافة رقمية يتكيف مع مستوى الطالبة</div>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary" onclick="resetLab()">إعادة</button>
+    <button class="btn btn-primary" onclick="nextQ()">سؤال جديد</button>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card rounded-4 shadow-sm">
+      <div class="card-body">
+        <div id="qBox" class="empty-state">اضغطي "سؤال جديد" للبدء.</div>
+      </div>
+    </div>
+
+    <div class="card rounded-4 shadow-sm mt-3">
+      <div class="card-body">
+        <h5 class="fw-bold">التغذية الراجعة</h5>
+        <div id="fbBox" class="text-muted">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card rounded-4 shadow-sm">
+      <div class="card-body">
+        <h5 class="fw-bold">لوحة التقدم</h5>
+        <div class="mini-card">
+          <div class="d-flex justify-content-between">
+            <span>المستوى الحالي</span>
+            <span class="fw-bold" id="statLevel">—</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>الصحيح</span>
+            <span class="fw-bold" id="statCorrect">—</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>الإجمالي</span>
+            <span class="fw-bold" id="statTotal">—</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span>نقاط المهارة</span>
+            <span class="fw-bold" id="statScore">—</span>
+          </div>
+        </div>
+
+        <div class="alert alert-info mt-3 mb-0">
+          <div class="fw-bold mb-1">فكرة الاختبار التكيفي</div>
+          كلما كانت إجاباتك صحيحة أكثر، ستظهر أسئلة أصعب، والعكس صحيح.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let currentQuestion = null;
+
+  async function nextQ(){
+    setBusy(true);
+    const res = await fetch("/api/lab/next-question");
+    const data = await res.json();
+    setBusy(false);
+
+    if(!data.ok){ toast("خطأ."); return; }
+    updateStats(data.state);
+
+    if(data.done){
+      document.getElementById("qBox").classList.remove("empty-state");
+      document.getElementById("qBox").innerHTML = `
+        <div class="text-center">
+          <div class="display-6 fw-bold mb-2">انتهى الاختبار</div>
+          <div class="text-muted">أحسنتِ! اضغطي "إعادة" للمحاولة مرة أخرى.</div>
+        </div>
+      `;
+      return;
+    }
+
+    currentQuestion = data.question;
+    renderQuestion(currentQuestion);
+    document.getElementById("fbBox").textContent = "—";
+  }
+
+  function renderQuestion(q){
+    const box = document.getElementById("qBox");
+    box.classList.remove("empty-state");
+    box.innerHTML = `
+      <div class="d-flex justify-content-between flex-wrap gap-2">
+        <div class="fw-bold">
+          <span class="badge bg-secondary">مستوى ${q.level}</span>
+          <span class="badge bg-light text-dark ms-1">${escapeHtml(q.topic || "")}</span>
+        </div>
+      </div>
+      <div class="mt-3 fs-5 fw-semibold">${escapeHtml(q.prompt)}</div>
+      <div class="mt-3 d-grid gap-2">
+        ${q.choices.map((c, idx)=>`
+          <button class="btn btn-outline-primary text-start" onclick="answer(${idx})">
+            ${escapeHtml(c)}
+          </button>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  async function answer(idx){
+    if(!currentQuestion) return;
+    setBusy(true);
+    const res = await fetch("/api/lab/answer", {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({id: currentQuestion.id, choice_index: idx})
+    });
+    const data = await res.json();
+    setBusy(false);
+
+    if(!data.ok){ toast("تعذر إرسال الإجابة."); return; }
+    updateStats(data.state);
+
+    const fb = data.feedback;
+    const cls = fb.correct ? "alert-success" : "alert-danger";
+    document.getElementById("fbBox").innerHTML = `
+      <div class="alert ${cls} mb-0">
+        <div class="fw-bold mb-1">${fb.correct ? "إجابة صحيحة ✅" : "إجابة غير صحيحة ❌"}</div>
+        <div class="mb-2">${escapeHtml(fb.explanation || "")}</div>
+        <div class="small">${escapeHtml(fb.tip || "")}</div>
+      </div>
+    `;
+    toast(fb.correct ? "أحسنتِ!" : "حاولي مرة أخرى.");
+  }
+
+  function updateStats(st){
+    document.getElementById("statLevel").textContent = st.level ?? "—";
+    document.getElementById("statCorrect").textContent = st.correct ?? "—";
+    document.getElementById("statTotal").textContent = st.total ?? "—";
+    document.getElementById("statScore").textContent = st.score ?? "—";
+  }
+
+  async function resetLab(){
+    setBusy(true);
+    const res = await fetch("/api/lab/reset", {method:"POST"});
+    const data = await res.json();
+    setBusy(false);
+
+    if(!data.ok){ toast("تعذر إعادة الضبط."); return; }
+    currentQuestion = null;
+    document.getElementById("qBox").classList.add("empty-state");
+    document.getElementById("qBox").textContent = 'اضغطي "سؤال جديد" للبدء.';
+    document.getElementById("fbBox").textContent = "—";
+    await nextQ();
+    toast("تمت الإعادة.");
+  }
+
+  // auto start
+  nextQ();
+</script>
+{% endblock %}
