@@ -7,9 +7,11 @@ from flask import Blueprint, current_app, render_template, request, jsonify, ses
 from .db import insert_json, list_rows
 from .services.lesson_planner import build_lesson_plan
 from .services.quiz_generator import generate_quiz_from_text
+from .services.ai_quiz import generate_quiz_smart
 from .services.study_planner import build_study_plan
 from .services.reading_analyzer import analyze_arabic_text
 from .services.adaptive_quiz import AdaptiveQuizEngine, load_question_bank
+from .services.file_extractor import extract_text_from_file
 
 bp = Blueprint("main", __name__)
 
@@ -26,6 +28,32 @@ def load_curriculum_seed() -> dict:
 def index():
     curriculum = load_curriculum_seed()
     return render_template("index.html", curriculum=curriculum)
+
+# ---------- File Upload ----------
+@bp.post("/api/extract-text")
+def api_extract_text():
+    """Extract text from uploaded file (PDF, DOCX, TXT)."""
+    if 'file' not in request.files:
+        return jsonify({"ok": False, "error": "لم يتم رفع ملف."}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"ok": False, "error": "لم يتم اختيار ملف."}), 400
+
+    # Check file size (max 10MB)
+    file.seek(0, 2)  # Seek to end
+    size = file.tell()
+    file.seek(0)  # Reset to beginning
+
+    if size > 10 * 1024 * 1024:  # 10MB
+        return jsonify({"ok": False, "error": "حجم الملف كبير جدًا. الحد الأقصى 10 ميغابايت."}), 400
+
+    success, result = extract_text_from_file(file, file.filename)
+
+    if not success:
+        return jsonify({"ok": False, "error": result}), 400
+
+    return jsonify({"ok": True, "text": result})
 
 # ---------- Teacher ----------
 @bp.get("/teacher")
@@ -57,7 +85,8 @@ def api_teacher_quiz_generate():
     if len(text) < 60:
         return jsonify({"ok": False, "error": "النص قصير جدًا. الرجاء لصق جزء أكبر من الدرس."}), 400
 
-    quiz = generate_quiz_from_text(text=text, num_questions=num_q, grade=grade, subject=subject)
+    # Use smart generator (AI with fallback to enhanced NLP)
+    quiz = generate_quiz_smart(text=text, num_questions=num_q, grade=grade, subject=subject)
 
     # persist
     db_path = current_app.config["DB_PATH"]

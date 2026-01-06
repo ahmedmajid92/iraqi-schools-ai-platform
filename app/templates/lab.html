@@ -4,7 +4,7 @@
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
   <div>
     <h2 class="fw-bold mb-1">مختبر الحاسوب</h2>
-    <div class="text-muted">اختبار ثقافة رقمية يتكيف مع مستوى الطالبة</div>
+    <div class="text-muted">اختبار ثقافة رقمية يتكيف مع مستوى الطالب</div>
   </div>
   <div class="d-flex gap-2">
     <button class="btn btn-outline-secondary" onclick="resetLab()">إعادة</button>
@@ -16,7 +16,7 @@
   <div class="col-lg-7">
     <div class="card rounded-4 shadow-sm">
       <div class="card-body">
-        <div id="qBox" class="empty-state">اضغطي "سؤال جديد" للبدء.</div>
+        <div id="qBox" class="empty-state">اضغط "سؤال جديد" للبدء.</div>
       </div>
     </div>
 
@@ -65,8 +65,10 @@
 {% block scripts %}
 <script>
   let currentQuestion = null;
+  let answered = false;  // Flag to prevent multiple answers
 
   async function nextQ(){
+    answered = false;  // Reset for new question
     setBusy(true);
     const res = await fetch("/api/lab/next-question");
     const data = await res.json();
@@ -80,7 +82,7 @@
       document.getElementById("qBox").innerHTML = `
         <div class="text-center">
           <div class="display-6 fw-bold mb-2">انتهى الاختبار</div>
-          <div class="text-muted">أحسنتِ! اضغطي "إعادة" للمحاولة مرة أخرى.</div>
+          <div class="text-muted">أحسنت! اضغط "إعادة" للمحاولة مرة أخرى.</div>
         </div>
       `;
       return;
@@ -114,6 +116,14 @@
 
   async function answer(idx){
     if(!currentQuestion) return;
+    if(answered) return;  // Prevent multiple answers
+
+    answered = true;  // Mark as answered
+
+    // Disable all choice buttons immediately
+    const buttons = document.querySelectorAll('#qBox button');
+    buttons.forEach(btn => btn.disabled = true);
+
     setBusy(true);
     const res = await fetch("/api/lab/answer", {
       method:"POST",
@@ -127,6 +137,20 @@
     updateStats(data.state);
 
     const fb = data.feedback;
+    const correctIdx = fb.correct_index;
+
+    // Highlight correct answer in green, wrong selection in red
+    buttons.forEach((btn, i) => {
+      btn.classList.remove('btn-outline-primary');
+      if(i === correctIdx) {
+        btn.classList.add('btn-success');
+      } else if(i === idx && !fb.correct) {
+        btn.classList.add('btn-danger');
+      } else {
+        btn.classList.add('btn-secondary');
+      }
+    });
+
     const cls = fb.correct ? "alert-success" : "alert-danger";
     document.getElementById("fbBox").innerHTML = `
       <div class="alert ${cls} mb-0">
@@ -135,7 +159,7 @@
         <div class="small">${escapeHtml(fb.tip || "")}</div>
       </div>
     `;
-    toast(fb.correct ? "أحسنتِ!" : "حاولي مرة أخرى.");
+    toast(fb.correct ? "أحسنت!" : "الإجابة الصحيحة موضحة باللون الأخضر.");
   }
 
   function updateStats(st){
@@ -154,7 +178,7 @@
     if(!data.ok){ toast("تعذر إعادة الضبط."); return; }
     currentQuestion = null;
     document.getElementById("qBox").classList.add("empty-state");
-    document.getElementById("qBox").textContent = 'اضغطي "سؤال جديد" للبدء.';
+    document.getElementById("qBox").textContent = 'اضغط "سؤال جديد" للبدء.';
     document.getElementById("fbBox").textContent = "—";
     await nextQ();
     toast("تمت الإعادة.");

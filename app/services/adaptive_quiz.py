@@ -72,6 +72,6 @@ class AdaptiveQuizEngine:
             "correct": correct,
             "correct_index": correct_index,
             "explanation": q.get("explanation", ""),
-            "tip": "أحسنتِ! لننتقل لسؤال آخر." if correct else "لا بأس—اقرئي الشرح ثم حاولي مجددًا."
+            "tip": "أحسنت! لننتقل لسؤال آخر." if correct else "لا بأس—اقرأ الشرح ثم حاول مجددًا."
         }
         return feedback, state

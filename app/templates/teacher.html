@@ -3,7 +3,7 @@
 
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
   <div>
-    <h2 class="fw-bold mb-1">وضع المعلمة</h2>
+    <h2 class="fw-bold mb-1">وضع المعلم</h2>
     <div class="text-muted">تحضير درس + توليد أسئلة من نص الدرس</div>
   </div>
 </div>
@@ -55,7 +55,11 @@
         <hr class="my-4">
 
         <h5 class="fw-bold mb-2">نص الدرس لتوليد الأسئلة</h5>
-        <textarea class="form-control" id="tLessonText" rows="7" placeholder="الصقي نص الدرس هنا..."></textarea>
+        <div class="mb-2">
+          <label class="form-label small text-muted">رفع ملف (PDF, Word, TXT) أو الصق النص مباشرة:</label>
+          <input type="file" class="form-control form-control-sm" id="tFile" accept=".pdf,.docx,.txt" onchange="uploadFile('tFile', 'tLessonText')">
+        </div>
+        <textarea class="form-control" id="tLessonText" rows="7" placeholder="الصق نص الدرس هنا..."></textarea>
 
         <div class="row g-2 mt-2 align-items-end">
           <div class="col-md-6">
@@ -98,6 +102,37 @@
 {% block scripts %}
 <script>
   const curriculum = JSON.parse(document.getElementById("curriculumData").textContent);
+
+  async function uploadFile(inputId, textareaId) {
+    const input = document.getElementById(inputId);
+    const textarea = document.getElementById(textareaId);
+    const file = input.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setBusy(true);
+    try {
+      const res = await fetch('/api/extract-text', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      setBusy(false);
+
+      if (data.ok) {
+        textarea.value = data.text;
+        toast('تم استخراج النص من الملف.');
+      } else {
+        toast(data.error || 'فشل في استخراج النص.');
+      }
+    } catch (e) {
+      setBusy(false);
+      toast('خطأ في رفع الملف.');
+    }
+    input.value = '';  // Reset file input
+  }
 
   function refreshTeacherSubjects(){
     const grade = document.getElementById("tGrade").value;
@@ -223,10 +258,13 @@
     const box = document.getElementById("quizBox");
     box.classList.remove("empty-state");
 
+    const genMethod = quiz.meta.generated_by || 'TF-IDF';
+    const methodBadge = genMethod.includes('AI') ? 'bg-info' : 'bg-warning text-dark';
     const header = `
       <div class="mb-2">
         <span class="badge bg-success">عدد الأسئلة</span> ${quiz.meta.question_count}
         <span class="badge bg-secondary ms-1">الصعوبة</span> ${escapeHtml(quiz.meta.difficulty)}
+        <span class="badge ${methodBadge} ms-1">التوليد: ${escapeHtml(genMethod)}</span>
       </div>
       <div class="text-muted small mb-3">${quiz.notes.map(x=>escapeHtml(x)).join(" — ")}</div>
     `;
@@ -242,7 +280,7 @@
       } else if(q.type === "صح/خطأ"){
         body = `<div class="text-muted mt-1">الإجابة: <span class="fw-semibold">${escapeHtml(q.answer)}</span></div>`;
       } else {
-        body = `<div class="text-muted mt-1">تلميح للمعلمة: ${escapeHtml(q.answer_hint || "")}</div>`;
+        body = `<div class="text-muted mt-1">تلميح للمعلم: ${escapeHtml(q.answer_hint || "")}</div>`;
       }
 
       return `

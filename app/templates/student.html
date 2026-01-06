@@ -3,7 +3,7 @@
 
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
   <div>
-    <h2 class="fw-bold mb-1">وضع الطالبة</h2>
+    <h2 class="fw-bold mb-1">وضع الطالب</h2>
     <div class="text-muted">خطة مذاكرة + مراجعة متباعدة + مختبر القراءة العربية</div>
   </div>
 </div>
@@ -45,7 +45,7 @@
 
         <div class="mb-2">
           <label class="form-label">الموضوعات (اختياري)</label>
-          <textarea class="form-control" id="sTopics" rows="6" placeholder="اكتبي موضوعاتك... مثال:
+          <textarea class="form-control" id="sTopics" rows="6" placeholder="اكتب موضوعاتك... مثال:
 اللغة العربية: البلاغة
 الرياضيات: المعادلات
 الحاسوب: أمن المعلومات"></textarea>
@@ -60,7 +60,11 @@
 
         <h5 class="fw-bold mb-2">مختبر القراءة العربية</h5>
         <input class="form-control mb-2" id="rLabel" placeholder="عنوان النص (اختياري)">
-        <textarea class="form-control" id="rText" rows="6" placeholder="الصقي نصًا عربيًا هنا..."></textarea>
+        <div class="mb-2">
+          <label class="form-label small text-muted">رفع ملف (PDF, Word, TXT) أو الصق النص مباشرة:</label>
+          <input type="file" class="form-control form-control-sm" id="rFile" accept=".pdf,.docx,.txt" onchange="uploadFile('rFile', 'rText')">
+        </div>
+        <textarea class="form-control" id="rText" rows="6" placeholder="الصق نصًا عربيًا هنا..."></textarea>
         <div class="d-grid mt-2">
           <button class="btn btn-success" onclick="analyzeReading()">تحليل النص</button>
         </div>
@@ -100,6 +104,37 @@
   let selectedSubjects = [];
   let lastPlan = null;
 
+  async function uploadFile(inputId, textareaId) {
+    const input = document.getElementById(inputId);
+    const textarea = document.getElementById(textareaId);
+    const file = input.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setBusy(true);
+    try {
+      const res = await fetch('/api/extract-text', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      setBusy(false);
+
+      if (data.ok) {
+        textarea.value = data.text;
+        toast('تم استخراج النص من الملف.');
+      } else {
+        toast(data.error || 'فشل في استخراج النص.');
+      }
+    } catch (e) {
+      setBusy(false);
+      toast('خطأ في رفع الملف.');
+    }
+    input.value = '';  // Reset file input
+  }
+
   function refreshSubjects(){
     const grade = document.getElementById("sGrade").value;
     const g = curriculum.grades.find(x => x.grade === grade);
@@ -127,7 +162,7 @@
     add.type = "button";
     add.textContent = "+ إضافة مادة";
     add.onclick = ()=>{
-      const name = prompt("اكتبي اسم المادة:");
+      const name = prompt("اكتب اسم المادة:");
       if(name && name.trim()){
         selectedSubjects.push(name.trim());
         renderChips();

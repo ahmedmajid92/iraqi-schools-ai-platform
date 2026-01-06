@@ -33,11 +33,13 @@ python run.py
 | Module | Purpose |
 |--------|---------|
 | `lesson_planner.py` | Teacher lesson plan generation with 3 templates (concepts, problem-solving, reading comprehension) |
-| `quiz_generator.py` | TF-IDF-based quiz generation (MCQ, fill-blank, true/false, short answer) |
+| `quiz_generator.py` | TF-IDF-based quiz generation (legacy) |
+| `ai_quiz.py` | Smart quiz generation with Gemini AI + enhanced NLP fallback |
 | `study_planner.py` | Student study plans with spaced repetition (review at days 1, 3, 7, 14) |
 | `reading_analyzer.py` | Arabic text difficulty scoring and analysis |
 | `adaptive_quiz.py` | Adaptive difficulty quiz engine for computer lab (levels 1-3) |
 | `arabic_nlp.py` | Arabic text normalization, tokenization, stopword removal |
+| `file_extractor.py` | Extract text from PDF, Word (.docx), and TXT files |
 
 ### Application Structure
 - `app/__init__.py` - Flask app factory (`create_app()`)
@@ -49,8 +51,9 @@ python run.py
 ### API Endpoints
 
 ```
+POST /api/extract-text           - Extract text from uploaded file (PDF, DOCX, TXT)
 POST /api/teacher/lesson-plan    - Generate lesson plans
-POST /api/teacher/quiz-generate  - Generate quizzes from text
+POST /api/teacher/quiz-generate  - Generate quizzes (AI or NLP)
 POST /api/student/study-plan     - Build study schedules
 POST /api/student/reading-analyze - Analyze text difficulty
 GET  /api/lab/next-question      - Get adaptive quiz question
@@ -60,9 +63,10 @@ POST /api/lab/reset              - Reset quiz session
 
 ## Key Implementation Details
 
-- **Quiz Generation**: Extracts top terms via TF-IDF, creates questions cyclically across 4 types
+- **Quiz Generation**: Uses Gemini AI if `GEMINI_API_KEY` is set, otherwise falls back to enhanced NLP patterns (definition, cause-effect, enumeration detection)
+- **File Upload**: Supports PDF (pdfplumber), Word (python-docx), and plain text with Arabic encoding detection
 - **Difficulty Formula**: `0.4*avg_words_per_sent + 0.3*avg_chars_per_word + 0.3*(1-TTR)*20`
-- **Adaptive Quiz**: Level calculated as `clamp(2 + score//2, 1..3)`, tracks asked questions to prevent repeats
+- **Adaptive Quiz**: Level calculated as `clamp(2 + score//2, 1..3)`, tracks asked questions to prevent repeats, locks answers after submission
 - **Arabic NLP**: Normalizes alef/ya/ta-marbuta variants, removes diacritics, 58+ stopwords
 
 ## Language Considerations
