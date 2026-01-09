@@ -1,2 +1,0 @@
-Requirement already satisfied: pdf2image in c:\users\ahmed\anaconda3\envs\iraq-edu-ai\lib\site-packages (1.17.0)
-Requirement already satisfied: pillow in c:\users\ahmed\anaconda3\envs\iraq-edu-ai\lib\site-packages (from pdf2image) (12.1.0)
