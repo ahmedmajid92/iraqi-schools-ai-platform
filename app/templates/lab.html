@@ -1,190 +1,578 @@
 {% extends "base.html" %}
-{% block content %}
 
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-  <div>
-    <h2 class="fw-bold mb-1">مختبر الحاسوب</h2>
-    <div class="text-muted">اختبار ثقافة رقمية يتكيف مع مستوى الطالب</div>
+{% block content %}
+<style>
+  .quiz-card {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .choice-btn {
+    display: block;
+    width: 100%;
+    text-align: right;
+    margin-bottom: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    transition: all 0.2s;
+  }
+  .choice-btn:hover:not(:disabled) {
+    transform: translateX(-5px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .choice-btn.correct {
+    background: #28a745 !important;
+    border-color: #28a745 !important;
+    color: #fff !important;
+  }
+  .choice-btn.wrong {
+    background: #dc3545 !important;
+    border-color: #dc3545 !important;
+    color: #fff !important;
+  }
+  .feedback-box {
+    padding: 1rem;
+    border-radius: 0.75rem;
+    margin-top: 1rem;
+  }
+  .timer-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #28a745 0%, #ffc107 50%, #dc3545 100%);
+    transition: width 0.1s linear;
+  }
+  .timer-container {
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  .timer-text {
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-align: center;
+  }
+  .timer-text.warning { color: #ffc107; }
+  .timer-text.danger { color: #dc3545; }
+  .stats-panel {
+    background: linear-gradient(135deg, #0d6efd 0%, #5b8cff 100%);
+    color: #fff;
+    border-radius: 1rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  .stat-item {
+    text-align: center;
+    padding: 0.5rem;
+  }
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+  }
+  .stat-label {
+    font-size: 0.8rem;
+    opacity: 0.9;
+  }
+  .badge-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(255,255,255,0.2);
+    padding: 0.3rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    margin: 0.2rem;
+  }
+  .streak-fire {
+    animation: pulse 0.5s ease-in-out infinite alternate;
+  }
+  @keyframes pulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.1); }
+  }
+  .new-badge-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.3);
+    z-index: 1000;
+    text-align: center;
+    animation: badgePopIn 0.5s ease-out;
+  }
+  @keyframes badgePopIn {
+    from { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  .new-badge-popup .icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+  .tts-btn {
+    border: none;
+    background: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  .tts-btn:hover {
+    opacity: 1;
+  }
+  .tts-btn.speaking {
+    animation: speakPulse 0.8s ease-in-out infinite;
+  }
+  @keyframes speakPulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+</style>
+
+<div class="quiz-card">
+  <!-- Stats Panel -->
+  <div class="stats-panel" id="statsPanel">
+    <div class="row g-2">
+      <div class="col-3 stat-item">
+        <div class="stat-value" id="statPoints">0</div>
+        <div class="stat-label">النقاط</div>
+      </div>
+      <div class="col-3 stat-item">
+        <div class="stat-value" id="statCorrect">0/<span id="statTotal">0</span></div>
+        <div class="stat-label">الصحيحة</div>
+      </div>
+      <div class="col-3 stat-item">
+        <div class="stat-value"><span id="statStreak" class="">0</span> 🔥</div>
+        <div class="stat-label">السلسلة</div>
+      </div>
+      <div class="col-3 stat-item">
+        <div class="stat-value">المستوى <span id="statLevel">2</span></div>
+        <div class="stat-label">الصعوبة</div>
+      </div>
+    </div>
+    <div id="badgesContainer" class="mt-2" style="display:none;">
+      <small>الشارات:</small>
+      <div id="badgesList"></div>
+    </div>
   </div>
-  <div class="d-flex gap-2">
-    <button class="btn btn-outline-secondary" onclick="resetLab()">إعادة</button>
-    <button class="btn btn-primary" onclick="nextQ()">سؤال جديد</button>
+
+  <!-- Question Card -->
+  <div class="card rounded-4 shadow-sm" id="questionCard">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="badge bg-secondary" id="topicBadge">الموضوع</span>
+        <span class="badge bg-primary" id="levelBadge">المستوى 2</span>
+      </div>
+
+      <!-- Timer -->
+      <div class="timer-container">
+        <div class="timer-bar" id="timerBar" style="width: 100%"></div>
+      </div>
+      <div class="timer-text" id="timerText">15</div>
+
+      <!-- Question with TTS -->
+      <div class="d-flex align-items-start gap-2 mb-3">
+        <button class="tts-btn" id="ttsBtn" title="استمع للسؤال">🔊</button>
+        <h5 class="mb-0" id="questionText">جاري التحميل...</h5>
+      </div>
+
+      <!-- Choices -->
+      <div id="choicesContainer"></div>
+
+      <!-- Feedback -->
+      <div id="feedbackBox" class="feedback-box" style="display:none;">
+        <div id="feedbackText"></div>
+        <div id="explanationText" class="mt-2 small text-muted"></div>
+      </div>
+
+      <!-- Next Button -->
+      <button class="btn btn-primary w-100 mt-3" id="nextBtn" style="display:none;">
+        السؤال التالي
+      </button>
+    </div>
+  </div>
+
+  <!-- Done Card -->
+  <div class="card rounded-4 shadow-sm" id="doneCard" style="display:none;">
+    <div class="card-body text-center py-5">
+      <h2 class="mb-4">🎉 أحسنت! انتهت الأسئلة</h2>
+      <div class="row g-3 mb-4">
+        <div class="col-6">
+          <div class="mini-card">
+            <div class="fw-bold fs-3" id="finalPoints">0</div>
+            <div class="text-muted">النقاط</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="mini-card">
+            <div class="fw-bold fs-3" id="finalScore">0/0</div>
+            <div class="text-muted">الإجابات الصحيحة</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="mini-card">
+            <div class="fw-bold fs-3" id="finalStreak">0</div>
+            <div class="text-muted">أفضل سلسلة</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="mini-card">
+            <div class="fw-bold fs-3" id="finalBadges">0</div>
+            <div class="text-muted">الشارات</div>
+          </div>
+        </div>
+      </div>
+      <div id="allBadges" class="mb-4"></div>
+      <button class="btn btn-lg btn-primary" id="restartBtn">ابدأ من جديد</button>
+    </div>
   </div>
 </div>
 
-<div class="row g-3">
-  <div class="col-lg-7">
-    <div class="card rounded-4 shadow-sm">
-      <div class="card-body">
-        <div id="qBox" class="empty-state">اضغط "سؤال جديد" للبدء.</div>
-      </div>
-    </div>
-
-    <div class="card rounded-4 shadow-sm mt-3">
-      <div class="card-body">
-        <h5 class="fw-bold">التغذية الراجعة</h5>
-        <div id="fbBox" class="text-muted">—</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-5">
-    <div class="card rounded-4 shadow-sm">
-      <div class="card-body">
-        <h5 class="fw-bold">لوحة التقدم</h5>
-        <div class="mini-card">
-          <div class="d-flex justify-content-between">
-            <span>المستوى الحالي</span>
-            <span class="fw-bold" id="statLevel">—</span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span>الصحيح</span>
-            <span class="fw-bold" id="statCorrect">—</span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span>الإجمالي</span>
-            <span class="fw-bold" id="statTotal">—</span>
-          </div>
-          <div class="d-flex justify-content-between">
-            <span>نقاط المهارة</span>
-            <span class="fw-bold" id="statScore">—</span>
-          </div>
-        </div>
-
-        <div class="alert alert-info mt-3 mb-0">
-          <div class="fw-bold mb-1">فكرة الاختبار التكيفي</div>
-          كلما كانت إجاباتك صحيحة أكثر، ستظهر أسئلة أصعب، والعكس صحيح.
-        </div>
-      </div>
-    </div>
-  </div>
+<!-- Badge Popup -->
+<div id="badgePopup" class="new-badge-popup" style="display:none;">
+  <div class="icon" id="popupBadgeIcon">🏆</div>
+  <h4 id="popupBadgeName">شارة جديدة!</h4>
+  <p class="text-muted" id="popupBadgeDesc">وصف الشارة</p>
+  <button class="btn btn-primary" id="closeBadgePopup">رائع!</button>
 </div>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-  let currentQuestion = null;
-  let answered = false;  // Flag to prevent multiple answers
-
-  async function nextQ(){
-    answered = false;  // Reset for new question
-    setBusy(true);
-    const res = await fetch("/api/lab/next-question");
-    const data = await res.json();
-    setBusy(false);
-
-    if(!data.ok){ toast("خطأ."); return; }
-    updateStats(data.state);
-
-    if(data.done){
-      document.getElementById("qBox").classList.remove("empty-state");
-      document.getElementById("qBox").innerHTML = `
-        <div class="text-center">
-          <div class="display-6 fw-bold mb-2">انتهى الاختبار</div>
-          <div class="text-muted">أحسنت! اضغط "إعادة" للمحاولة مرة أخرى.</div>
-        </div>
-      `;
-      return;
-    }
-
-    currentQuestion = data.question;
-    renderQuestion(currentQuestion);
-    document.getElementById("fbBox").textContent = "—";
-  }
-
-  function renderQuestion(q){
-    const box = document.getElementById("qBox");
-    box.classList.remove("empty-state");
-    box.innerHTML = `
-      <div class="d-flex justify-content-between flex-wrap gap-2">
-        <div class="fw-bold">
-          <span class="badge bg-secondary">مستوى ${q.level}</span>
-          <span class="badge bg-light text-dark ms-1">${escapeHtml(q.topic || "")}</span>
-        </div>
-      </div>
-      <div class="mt-3 fs-5 fw-semibold">${escapeHtml(q.prompt)}</div>
-      <div class="mt-3 d-grid gap-2">
-        ${q.choices.map((c, idx)=>`
-          <button class="btn btn-outline-primary text-start" onclick="answer(${idx})">
-            ${escapeHtml(c)}
-          </button>
-        `).join("")}
-      </div>
-    `;
-  }
-
-  async function answer(idx){
-    if(!currentQuestion) return;
-    if(answered) return;  // Prevent multiple answers
-
-    answered = true;  // Mark as answered
-
-    // Disable all choice buttons immediately
-    const buttons = document.querySelectorAll('#qBox button');
-    buttons.forEach(btn => btn.disabled = true);
-
-    setBusy(true);
-    const res = await fetch("/api/lab/answer", {
-      method:"POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({id: currentQuestion.id, choice_index: idx})
-    });
-    const data = await res.json();
-    setBusy(false);
-
-    if(!data.ok){ toast("تعذر إرسال الإجابة."); return; }
-    updateStats(data.state);
-
-    const fb = data.feedback;
-    const correctIdx = fb.correct_index;
-
-    // Highlight correct answer in green, wrong selection in red
-    buttons.forEach((btn, i) => {
-      btn.classList.remove('btn-outline-primary');
-      if(i === correctIdx) {
-        btn.classList.add('btn-success');
-      } else if(i === idx && !fb.correct) {
-        btn.classList.add('btn-danger');
+(function() {
+  function init() {
+    console.log('Lab quiz initialized');
+    
+    let currentQuestion = null;
+    let timerInterval = null;
+    let timeRemaining = 0;
+    let answered = false;
+    let synth = window.speechSynthesis;
+    let arabicVoice = null;
+    
+    // Grade settings from server
+    const gradeSettings = {{ grade_settings | tojson | safe }};
+    const defaultTimer = gradeSettings.timer || 20;
+    const defaultLevel = gradeSettings.level || 2;
+    
+    // Initialize Arabic voice
+    function initVoice() {
+      if (!synth) return;
+      const voices = synth.getVoices();
+      
+      // Log available voices for debugging
+      console.log('Available voices:', voices.map(v => `${v.name} (${v.lang})`));
+      
+      // Try to find Arabic voice
+      arabicVoice = voices.find(v => 
+        v.lang.startsWith('ar') || 
+        v.lang.includes('ar-') ||
+        v.name.toLowerCase().includes('arabic') || 
+        v.name.includes('العربية')
+      );
+      
+      if (arabicVoice) {
+        console.log('Arabic voice found:', arabicVoice.name, arabicVoice.lang);
       } else {
-        btn.classList.add('btn-secondary');
+        console.warn('No Arabic voice found. TTS will not work properly.');
+        console.log('To fix: Install an Arabic TTS voice in Windows Settings > Time & Language > Speech');
       }
-    });
-
-    const cls = fb.correct ? "alert-success" : "alert-danger";
-    document.getElementById("fbBox").innerHTML = `
-      <div class="alert ${cls} mb-0">
-        <div class="fw-bold mb-1">${fb.correct ? "إجابة صحيحة ✅" : "إجابة غير صحيحة ❌"}</div>
-        <div class="mb-2">${escapeHtml(fb.explanation || "")}</div>
-        <div class="small">${escapeHtml(fb.tip || "")}</div>
-      </div>
-    `;
-    toast(fb.correct ? "أحسنت!" : "الإجابة الصحيحة موضحة باللون الأخضر.");
+    }
+    
+    // Load voices when ready
+    if (synth) {
+      synth.onvoiceschanged = initVoice;
+      initVoice();
+    }
+    
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    function playSound(freq, duration) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.frequency.value = freq;
+      gain.gain.value = 0.15;
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+    
+    // Speak question in Arabic - improved version
+    function speakQuestion(text) {
+      if (!synth) {
+        console.log('SpeechSynthesis not available');
+        return;
+      }
+      
+      if (!arabicVoice) {
+        console.warn('Cannot speak: No Arabic voice available');
+        return;
+      }
+      
+      synth.cancel(); // Stop any ongoing speech
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Use Arabic voice
+      utterance.voice = arabicVoice;
+      
+      // Set language to Arabic
+      utterance.lang = 'ar-SA';
+      utterance.rate = 0.85; // Slightly slower for clarity
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      
+      console.log('Speaking with voice:', arabicVoice.name);
+      synth.speak(utterance);
+    }
+    
+    // Shuffle array and track correct answer position
+    function shuffleChoices(choices, correctIndex) {
+      const correctAnswer = choices[correctIndex];
+      const shuffled = [...choices];
+      
+      // Fisher-Yates shuffle
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      
+      return {
+        choices: shuffled,
+        correctIndex: shuffled.indexOf(correctAnswer),
+        correctAnswer: correctAnswer  // Store the correct answer text
+      };
+    }
+    
+    function updateStats(state) {
+      const statPoints = document.getElementById('statPoints');
+      const statCorrect = document.getElementById('statCorrect');
+      const statTotal = document.getElementById('statTotal');
+      const statLevel = document.getElementById('statLevel');
+      const statStreak = document.getElementById('statStreak');
+      
+      if (!statPoints || !statCorrect || !statTotal || !statLevel || !statStreak) {
+        console.error('Stats elements not found in DOM');
+        return;
+      }
+      
+      statPoints.textContent = state.points || 0;
+      statCorrect.textContent = state.correct || 0;
+      statTotal.textContent = state.total || 0;
+      statLevel.textContent = state.level || defaultLevel;
+      
+      const streak = state.current_streak || 0;
+      statStreak.textContent = streak;
+      statStreak.classList.toggle('streak-fire', streak >= 3);
+      
+      const badges = state.badges || [];
+      if (badges.length > 0) {
+        const badgesContainer = document.getElementById('badgesContainer');
+        const badgesList = document.getElementById('badgesList');
+        if (badgesContainer && badgesList) {
+          badgesContainer.style.display = 'block';
+          badgesList.innerHTML = badges.map(b => 
+            `<span class="badge-item">${getBadgeIcon(b)}</span>`
+          ).join('');
+        }
+      }
+    }
+    
+    function getBadgeIcon(id) {
+      const icons = {first_correct:'🎯',streak_3:'🔥',streak_5:'⚡',streak_10:'🏆',
+                     fast_answer:'⚡',perfect_10:'💯',level_3:'🌟',half_century:'🎖️'};
+      return icons[id] || '🏅';
+    }
+    
+    async function loadQuestion() {
+      initAudio();
+      answered = false;
+      if (timerInterval) clearInterval(timerInterval);
+      
+      document.getElementById('feedbackBox').style.display = 'none';
+      document.getElementById('nextBtn').style.display = 'none';
+      document.getElementById('choicesContainer').innerHTML = '';
+      
+      try {
+        const res = await fetch('/api/lab/next-question');
+        const data = await res.json();
+        
+        if (data.done) {
+          showDone(data.state);
+          return;
+        }
+        
+        currentQuestion = data.question;
+        updateStats(data.state);
+        
+        // Shuffle the choices
+        const shuffled = shuffleChoices(currentQuestion.choices, currentQuestion.answer_index);
+        currentQuestion.choices = shuffled.choices;
+        currentQuestion.shuffled_answer_index = shuffled.correctIndex;
+        
+        document.getElementById('topicBadge').textContent = currentQuestion.topic;
+        document.getElementById('levelBadge').textContent = `المستوى ${currentQuestion.level}`;
+        document.getElementById('questionText').textContent = currentQuestion.prompt;
+        
+        const container = document.getElementById('choicesContainer');
+        currentQuestion.choices.forEach((choice, idx) => {
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-outline-secondary choice-btn';
+          btn.textContent = choice;
+          btn.onclick = () => selectChoice(idx);
+          container.appendChild(btn);
+        });
+        
+        // Use grade-based timer
+        const questionTimer = currentQuestion.timer_seconds || defaultTimer;
+        startTimer(questionTimer);
+        
+        // Auto-speak the question after a short delay
+        setTimeout(() => speakQuestion(currentQuestion.prompt), 300);
+        
+      } catch (err) {
+        console.error(err);
+        document.getElementById('questionText').textContent = 'خطأ في التحميل';
+      }
+    }
+    
+    function startTimer(seconds) {
+      timeRemaining = seconds;
+      const start = Date.now();
+      
+      timerInterval = setInterval(() => {
+        const elapsed = (Date.now() - start) / 1000;
+        timeRemaining = Math.max(0, seconds - elapsed);
+        const percent = (timeRemaining / seconds) * 100;
+        
+        document.getElementById('timerBar').style.width = percent + '%';
+        document.getElementById('timerText').textContent = Math.ceil(timeRemaining);
+        
+        // Add warning colors
+        const timerText = document.getElementById('timerText');
+        if (timeRemaining <= 5) {
+          timerText.classList.add('danger');
+          timerText.classList.remove('warning');
+        } else if (timeRemaining <= 10) {
+          timerText.classList.add('warning');
+          timerText.classList.remove('danger');
+        } else {
+          timerText.classList.remove('warning', 'danger');
+        }
+        
+        if (timeRemaining <= 0) {
+          clearInterval(timerInterval);
+          if (!answered) submitAnswer(-1);
+        }
+      }, 100);
+    }
+    
+    function selectChoice(idx) {
+      if (answered) return;
+      document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
+      submitAnswer(idx);
+    }
+    
+    async function submitAnswer(chosenIndex) {
+      answered = true;
+      if (timerInterval) clearInterval(timerInterval);
+      if (synth) synth.cancel(); // Stop speaking
+      
+      const timeTaken = currentQuestion ? (currentQuestion.timer_seconds || defaultTimer) - timeRemaining : null;
+      
+      // Get the actual chosen answer text (not index)
+      const chosenAnswerText = chosenIndex >= 0 ? currentQuestion.choices[chosenIndex] : '';
+      
+      try {
+        const res = await fetch('/api/lab/answer', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            id: currentQuestion.id,
+            choice_index: currentQuestion.answer_index,  // Send original answer index for server
+            chosen_answer: chosenAnswerText,  // Send what user actually chose
+            time_taken_seconds: timeTaken
+          })
+        });
+        const data = await res.json();
+        const fb = data.feedback;
+        
+        playSound(fb.correct ? 523 : 200, 0.3);
+        
+        const buttons = document.querySelectorAll('.choice-btn');
+        buttons.forEach((btn, idx) => {
+          // Use shuffled_answer_index for highlighting
+          if (idx === currentQuestion.shuffled_answer_index) btn.classList.add('correct');
+          else if (idx === chosenIndex && !fb.correct) btn.classList.add('wrong');
+        });
+        
+        const feedbackBox = document.getElementById('feedbackBox');
+        feedbackBox.style.display = 'block';
+        feedbackBox.className = 'feedback-box alert ' + (fb.correct ? 'alert-success' : 'alert-danger');
+        document.getElementById('feedbackText').textContent = fb.tip;
+        document.getElementById('explanationText').textContent = fb.explanation;
+        
+        updateStats(data.state);
+        document.getElementById('nextBtn').style.display = 'block';
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    
+    // Helper to map shuffled index back to original
+    function getOriginalIndex(shuffledIdx) {
+      // The server expects original index, but we have shuffled choices
+      // Since we sent shuffled index, server will validate against shuffled
+      // We need to send the choice text instead
+      // Actually, simpler: send original answer_index from data
+      return currentQuestion.answer_index;  // Not used - server checks by id
+    }
+    
+    function showDone(state) {
+      document.getElementById('questionCard').style.display = 'none';
+      document.getElementById('doneCard').style.display = 'block';
+      document.getElementById('finalPoints').textContent = state.points || 0;
+      document.getElementById('finalScore').textContent = `${state.correct||0}/${state.total||0}`;
+      document.getElementById('finalStreak').textContent = state.best_streak || 0;
+      document.getElementById('finalBadges').textContent = (state.badges||[]).length;
+    }
+    
+    async function restart() {
+      await fetch('/api/lab/reset', {method: 'POST'});
+      document.getElementById('questionCard').style.display = 'block';
+      document.getElementById('doneCard').style.display = 'none';
+      loadQuestion();
+    }
+    
+    document.getElementById('nextBtn').onclick = loadQuestion;
+    document.getElementById('restartBtn').onclick = restart;
+    document.getElementById('closeBadgePopup').onclick = () => {
+      document.getElementById('badgePopup').style.display = 'none';
+    };
+    
+    // Manual TTS button (optional - auto-read is already implemented)
+    document.getElementById('ttsBtn').onclick = () => {
+      if (currentQuestion) {
+        speakQuestion(currentQuestion.prompt);
+      }
+    };
+    
+    loadQuestion();
   }
-
-  function updateStats(st){
-    document.getElementById("statLevel").textContent = st.level ?? "—";
-    document.getElementById("statCorrect").textContent = st.correct ?? "—";
-    document.getElementById("statTotal").textContent = st.total ?? "—";
-    document.getElementById("statScore").textContent = st.score ?? "—";
+  
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
-
-  async function resetLab(){
-    setBusy(true);
-    const res = await fetch("/api/lab/reset", {method:"POST"});
-    const data = await res.json();
-    setBusy(false);
-
-    if(!data.ok){ toast("تعذر إعادة الضبط."); return; }
-    currentQuestion = null;
-    document.getElementById("qBox").classList.add("empty-state");
-    document.getElementById("qBox").textContent = 'اضغط "سؤال جديد" للبدء.';
-    document.getElementById("fbBox").textContent = "—";
-    await nextQ();
-    toast("تمت الإعادة.");
-  }
-
-  // auto start
-  nextQ();
+})();
 </script>
 {% endblock %}
+

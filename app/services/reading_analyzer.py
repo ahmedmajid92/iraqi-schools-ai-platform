@@ -236,6 +236,10 @@ def identify_difficult_words(text: str, limit: int = 15) -> List[Dict]:
 def analyze_arabic_text(text: str) -> Dict:
     """
     Comprehensive Arabic text difficulty analysis.
+    
+    Priority:
+    1. AI analysis (OpenAI/Gemini) - Best quality
+    2. Enhanced NLP - Fallback
 
     Returns a dictionary with:
     - difficulty: Overall difficulty rating (سهل/متوسط/صعب)
@@ -244,6 +248,26 @@ def analyze_arabic_text(text: str) -> Dict:
     - difficult_words: List of challenging vocabulary
     - summary_bullets: Key sentences from the text
     - notes: Analysis notes
+    """
+    # Try AI analysis first
+    try:
+        from .openai_analysis import analyze_with_ai
+        ai_result = analyze_with_ai(text)
+        
+        if ai_result:
+            # AI analysis succeeded - return enhanced result
+            return ai_result
+    except Exception as e:
+        print(f"AI analysis failed, falling back to NLP: {e}")
+    
+    # Fallback to enhanced NLP analysis
+    return _analyze_with_nlp(text)
+
+
+def _analyze_with_nlp(text: str) -> Dict:
+    """
+    NLP-based analysis (original implementation).
+    Used as fallback when AI is not available.
     """
     sentences = split_sentences(text)
     tokens = remove_stopwords(tokenize_arabic(text), DEFAULT_STOPWORDS)
@@ -366,7 +390,8 @@ def analyze_arabic_text(text: str) -> Dict:
             "التصنيف يعتمد على تحليل لغوي متقدم للنص.",
             f"درجة الصعوبة الإجمالية: {round(scaled_score, 1)} من 20",
             "الكلمات الصعبة محددة بناءً على التردد والتعقيد الصرفي."
-        ]
+        ],
+        "source": "nlp"
     }
 
 

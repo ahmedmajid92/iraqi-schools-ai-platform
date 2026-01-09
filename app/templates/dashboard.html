@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .stat-card {
+    background: linear-gradient(135deg, #0d6efd 0%, #5b8cff 100%);
+    color: #fff;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    text-align: center;
+    transition: transform 0.2s;
+  }
+  .stat-card:hover {
+    transform: translateY(-3px);
+  }
+  .stat-card.secondary {
+    background: linear-gradient(135deg, #6c757d 0%, #adb5bd 100%);
+  }
+  .stat-card.success {
+    background: linear-gradient(135deg, #198754 0%, #40c790 100%);
+  }
+  .stat-card.warning {
+    background: linear-gradient(135deg, #ffc107 0%, #ffda6a 100%);
+    color: #1c2430;
+  }
+  .stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+  }
+  .stat-label {
+    opacity: 0.9;
+    font-size: 0.9rem;
+  }
+  .chart-container {
+    background: #fff;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    margin-bottom: 1rem;
+  }
+  .subject-bar {
+    height: 30px;
+    border-radius: 15px;
+    background: #e9ecef;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+  .subject-bar-fill {
+    height: 100%;
+    border-radius: 15px;
+    background: linear-gradient(90deg, #0d6efd 0%, #5b8cff 100%);
+    transition: width 0.5s ease-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+  .badge-showcase {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+  }
+  .badge-item {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 1rem;
+    padding: 1rem;
+    text-align: center;
+    min-width: 100px;
+    transition: all 0.2s;
+  }
+  .badge-item.earned {
+    background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+    border-color: #ffc107;
+  }
+  .badge-item.locked {
+    opacity: 0.5;
+    filter: grayscale(100%);
+  }
+  .badge-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .badge-name {
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  .activity-item {
+    background: #f8f9fa;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .activity-item .score {
+    font-weight: bold;
+    font-size: 1.2rem;
+  }
+  .progress-ring {
+    width: 120px;
+    height: 120px;
+  }
+  .progress-ring-circle {
+    transition: stroke-dashoffset 0.5s;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="fw-bold mb-0">📊 لوحة التقدم</h2>
+  <button class="btn btn-outline-primary" onclick="refreshData()">🔄 تحديث</button>
+</div>
+
+<!-- Top Stats -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-value" id="totalQuizzes">0</div>
+      <div class="stat-label">الاختبارات</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card secondary">
+      <div class="stat-value" id="totalQuestions">0</div>
+      <div class="stat-label">الأسئلة</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card success">
+      <div class="stat-value" id="accuracy">0%</div>
+      <div class="stat-label">نسبة النجاح</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card warning">
+      <div class="stat-value" id="totalPoints">0</div>
+      <div class="stat-label">النقاط</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Subject Performance -->
+  <div class="col-lg-6">
+    <div class="chart-container">
+      <h5 class="fw-bold mb-3">📚 الأداء حسب المادة</h5>
+      <div id="subjectCharts">
+        <div class="text-center text-muted py-4">لا توجد بيانات بعد</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lab Progress -->
+  <div class="col-lg-6">
+    <div class="chart-container">
+      <h5 class="fw-bold mb-3">💻 مختبر الحاسوب</h5>
+      <div class="row text-center">
+        <div class="col-4">
+          <div class="fs-3 fw-bold text-primary" id="labPoints">0</div>
+          <small class="text-muted">النقاط</small>
+        </div>
+        <div class="col-4">
+          <div class="fs-3 fw-bold text-success" id="labCorrect">0</div>
+          <small class="text-muted">الصحيحة</small>
+        </div>
+        <div class="col-4">
+          <div class="fs-3 fw-bold text-warning" id="labStreak">0</div>
+          <small class="text-muted">أفضل سلسلة</small>
+        </div>
+      </div>
+      <hr>
+      <div id="labBadges" class="badge-showcase">
+        <!-- Badges will be inserted here -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Badges Section -->
+<div class="chart-container mt-4">
+  <h5 class="fw-bold mb-3">🏆 الشارات المتاحة</h5>
+  <div class="badge-showcase" id="allBadges">
+    <!-- All badges shown here -->
+  </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="chart-container mt-4">
+  <h5 class="fw-bold mb-3">⏱️ النشاط الأخير</h5>
+  <div id="recentActivity">
+    <div class="text-center text-muted py-4">لا توجد نشاطات مسجلة</div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ALL_BADGES = {
+  'first_correct': { icon: '🎯', name: 'البداية الصحيحة', desc: 'أول إجابة صحيحة' },
+  'streak_3': { icon: '🔥', name: 'سلسلة 3', desc: '3 إجابات متتالية' },
+  'streak_5': { icon: '⚡', name: 'سلسلة 5', desc: '5 إجابات متتالية' },
+  'streak_10': { icon: '🏆', name: 'أسطوري', desc: '10 إجابات متتالية' },
+  'fast_answer': { icon: '⚡', name: 'البرق', desc: 'إجابة في أقل من 5 ثواني' },
+  'perfect_10': { icon: '💯', name: 'عشرة من عشرة', desc: '10 إجابات صحيحة' },
+  'level_3': { icon: '🌟', name: 'المستوى المتقدم', desc: 'الوصول للمستوى 3' },
+  'half_century': { icon: '🎖️', name: 'نصف المئة', desc: '50 نقطة' }
+};
+
+async function loadStats() {
+  try {
+    const res = await fetch('/api/dashboard/stats');
+    const data = await res.json();
+    
+    if (!data.ok) {
+      console.error('Failed to load stats');
+      return;
+    }
+    
+    const stats = data.stats;
+    
+    // Update top stats
+    document.getElementById('totalQuizzes').textContent = stats.total_quizzes || 0;
+    document.getElementById('totalQuestions').textContent = stats.total_questions_answered || 0;
+    document.getElementById('accuracy').textContent = (stats.accuracy || 0) + '%';
+    document.getElementById('totalPoints').textContent = stats.lab_progress?.total_points || 0;
+    
+    // Lab progress
+    if (stats.lab_progress) {
+      document.getElementById('labPoints').textContent = stats.lab_progress.total_points || 0;
+      document.getElementById('labCorrect').textContent = stats.lab_progress.correct_answers || 0;
+      document.getElementById('labStreak').textContent = stats.lab_progress.best_streak || 0;
+      
+      // Earned badges
+      const earnedBadges = stats.lab_progress.badges_json ? JSON.parse(stats.lab_progress.badges_json) : [];
+      renderBadges(earnedBadges);
+    } else {
+      renderBadges([]);
+    }
+    
+    // Subject performance
+    if (stats.subjects && Object.keys(stats.subjects).length > 0) {
+      renderSubjectCharts(stats.subjects);
+    }
+    
+    // Recent activity
+    if (stats.recent_activity && stats.recent_activity.length > 0) {
+      renderRecentActivity(stats.recent_activity);
+    }
+    
+  } catch (err) {
+    console.error('Error loading stats:', err);
+  }
+}
+
+function renderSubjectCharts(subjects) {
+  const container = document.getElementById('subjectCharts');
+  let html = '';
+  
+  for (const [subject, data] of Object.entries(subjects)) {
+    const score = data.avg_score || 0;
+    const color = score >= 80 ? '#198754' : score >= 60 ? '#ffc107' : '#dc3545';
+    
+    html += `
+      <div class="mb-3">
+        <div class="d-flex justify-content-between mb-1">
+          <span>${subject}</span>
+          <span class="fw-bold">${score.toFixed(0)}%</span>
+        </div>
+        <div class="subject-bar">
+          <div class="subject-bar-fill" style="width: ${score}%; background: ${color}">
+            ${data.attempts} محاولة
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  container.innerHTML = html || '<div class="text-center text-muted py-4">لا توجد بيانات بعد</div>';
+}
+
+function renderBadges(earnedBadges) {
+  const container = document.getElementById('allBadges');
+  let html = '';
+  
+  for (const [id, badge] of Object.entries(ALL_BADGES)) {
+    const earned = earnedBadges.includes(id);
+    html += `
+      <div class="badge-item ${earned ? 'earned' : 'locked'}">
+        <div class="badge-icon">${badge.icon}</div>
+        <div class="badge-name">${badge.name}</div>
+        <small class="text-muted">${badge.desc}</small>
+      </div>
+    `;
+  }
+  
+  container.innerHTML = html;
+  
+  // Lab badges (only earned)
+  const labContainer = document.getElementById('labBadges');
+  if (earnedBadges.length > 0) {
+    labContainer.innerHTML = earnedBadges.map(id => {
+      const badge = ALL_BADGES[id];
+      return badge ? `<span class="badge bg-warning text-dark">${badge.icon} ${badge.name}</span>` : '';
+    }).join('');
+  } else {
+    labContainer.innerHTML = '<span class="text-muted">لم تحصل على أي شارة بعد</span>';
+  }
+}
+
+function renderRecentActivity(activities) {
+  const container = document.getElementById('recentActivity');
+  
+  const html = activities.map(a => {
+    const date = new Date(a.created_at).toLocaleDateString('ar-IQ');
+    const percent = a.total_questions > 0 ? Math.round(a.score / a.total_questions * 100) : 0;
+    const colorClass = percent >= 80 ? 'text-success' : percent >= 60 ? 'text-warning' : 'text-danger';
+    
+    return `
+      <div class="activity-item">
+        <div>
+          <strong>${a.subject || a.quiz_type || 'اختبار'}</strong>
+          <span class="text-muted me-2">${a.grade || ''}</span>
+          <br>
+          <small class="text-muted">${date}</small>
+        </div>
+        <div class="score ${colorClass}">
+          ${a.score}/${a.total_questions}
+          <small class="text-muted">(${percent}%)</small>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  container.innerHTML = html || '<div class="text-center text-muted py-4">لا توجد نشاطات مسجلة</div>';
+}
+
+function refreshData() {
+  loadStats();
+}
+
+// Load on page load
+loadStats();
+</script>
+{% endblock %}

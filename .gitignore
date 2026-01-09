@@ -113,3 +113,8 @@ Thumbs.db
 
 # AraVec word embedding models (large binary files)
 app/data/models/aravec/
+
+# Qwen2.5 generative model cache (large files, ~3 GB)
+app/data/models/qwen/
+
+app/data/models/arat5/

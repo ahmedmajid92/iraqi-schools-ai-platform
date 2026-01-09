@@ -10,80 +10,70 @@ from typing import Tuple
 def _is_arabic_text_reversed(text: str) -> bool:
     """
     Detect if Arabic text is reversed (characters in wrong order).
-
-    This happens when PDF extraction reads RTL text incorrectly,
-    producing text like "بوساحلا" instead of "الحاسوب".
-
-    Detection method: Check if common Arabic words appear reversed.
+    
+    Enhanced detection that handles both standard Arabic and presentation forms.
     """
-    # Common Arabic words and their reversed forms
-    # If we find more reversed forms than normal forms, text is likely reversed
-    common_words = [
-        ('من', 'نم'),
-        ('في', 'يف'),
-        ('على', 'ىلع'),
-        ('إلى', 'ىلإ'),
-        ('الى', 'ىلا'),
-        ('هذا', 'اذه'),
-        ('هذه', 'هذه'),  # Palindrome, skip
-        ('التي', 'يتلا'),
-        ('الذي', 'يذلا'),
-        ('كان', 'ناك'),
-        ('عن', 'نع'),
-        ('مع', 'عم'),
-        ('بين', 'نيب'),
-        ('كل', 'لك'),
-        ('بعد', 'دعب'),
-        ('قبل', 'لبق'),
-        ('هو', 'وه'),
-        ('هي', 'يه'),
-        ('أن', 'نأ'),
-        ('ان', 'نا'),
-        ('لم', 'مل'),
-        ('أو', 'وأ'),
-        ('او', 'وا'),
-        ('ما', 'ام'),
-        ('عند', 'دنع'),
-        ('حتى', 'ىتح'),
-        ('لكن', 'نكل'),
-        ('ثم', 'مث'),
-        ('الماء', 'ءاملا'),
-        ('العلم', 'ملعلا'),
-        ('الكتاب', 'باتكلا'),
-        ('المدرسة', 'ةسردملا'),
-        ('الطالب', 'بلاطلا'),
-    ]
-
-    normal_count = 0
-    reversed_count = 0
-
-    for normal, reversed_form in common_words:
-        if normal == reversed_form:  # Skip palindromes
-            continue
-        # Count occurrences
-        normal_count += text.count(normal)
-        reversed_count += text.count(reversed_form)
-
-    # If we found significantly more reversed words, text is reversed
-    # Use a threshold to avoid false positives
-    if reversed_count > normal_count and reversed_count >= 3:
+    # Check for presentation forms (FE70-FEFF range) which indicate PDF reversal
+    presentation_forms = sum(1 for c in text if '\uFE70' <= c <= '\uFEFF')
+    if presentation_forms > 20:  # If many presentation forms, likely reversed
         return True
-
+    
+    # Check common reversed patterns
+    reversed_patterns = [
+        'ﻊﺿﺃ',  # أضع reversed (presentation form)
+        'ﻁﻐﺿﺃ',  # أضغط reversed
+        'ﺭﺎﺗﺧﺃ',  # أختار reversed
+        'بوساحلا',  # الحاسوب reversed
+        'عبارلا',  # الرابع reversed
+        'ىلع',  # على reversed
+        'يف',  # في reversed
+        'نم',  # من reversed
+        'نع',  # عن reversed
+        'باتكلا',  # الكتاب reversed
+        'ةسردملا',  # المدرسة reversed
+        'بلاطلا',  # الطالب reversed
+        'دنع',  # عند reversed
+        'سماخلا',  # الخامس reversed
+        'سداسلا',  # السادس reversed
+        'لولأا',  # الأول reversed
+        'ةلومحملا',  # المحمولة reversed (lowercase)
+        'ﺔﻟﻭﻣﺣﻣﻟﺍ',  # المحمولة reversed (presentation)
+    ]
+    
+    reversed_count = sum(1 for pattern in reversed_patterns if pattern in text)
+    
+    # If we find ANY reversed patterns, the text is reversed
+    if reversed_count > 0:
+        return True
+    
+    # Fallback: check word patterns
+    # In correct Arabic, words starting with "ال" are common
+    # In reversed Arabic, words ending with "لا" are common
+    words = text.split()
+    al_start = sum(1 for w in words if w.startswith('ال'))
+    al_end = sum(1 for w in words if w.endswith('لا'))
+    
+    if al_end > al_start and al_end >= 2:
+        return True
+    
     return False
 
 
 def _reverse_arabic_words(text: str) -> str:
     """
-    Fix reversed Arabic text by reversing each word AND word order.
-
-    This handles PDFs where Arabic text is extracted completely backwards:
-    - Characters within each word are reversed
-    - Word order within each line is reversed
-
-    Example:
-        Input:  "بوساحلا نع ةمدقم" (reversed)
-        Output: "مقدمة عن الحاسوب" (correct)
+    Fix reversed Arabic text by reversing characters and word order.
+    Enhanced to handle presentation forms.
     """
+    def normalize_arabic(char):
+        """Convert Arabic presentation forms to standard forms."""
+        # Presentation forms B (FE70-FEFF) -> Standard Arabic (0600-06FF)
+        code = ord(char)
+        if 0xFE70 <= code <= 0xFEFF:
+            # Simple mapping (not perfect but helps)
+            # This is a simplified approach
+            return char  # Keep as-is for now, reversal will fix it
+        return char
+    
     lines = text.split('\n')
     fixed_lines = []
 
@@ -97,14 +87,20 @@ def _reverse_arabic_words(text: str) -> str:
         fixed_words = []
 
         for word in words:
-            # Check if word contains Arabic characters
-            arabic_chars = sum(1 for c in word if '\u0600' <= c <= '\u06FF')
-
-            if arabic_chars > len(word) * 0.5:  # More than 50% Arabic
+            # Check if word contains Arabic characters (including presentation forms)
+            arabic_chars = sum(1 for c in word if 
+                             ('\u0600' <= c <= '\u06FF') or  # Standard Arabic
+                             ('\uFE70' <= c <= '\uFEFF') or  # Presentation Forms B
+                             ('\uFB50' <= c <= '\uFDFF'))    # Presentation Forms A
+            
+            if arabic_chars > len(word) * 0.3:  # More than 30% Arabic
                 # Reverse the characters within the word
-                fixed_words.append(word[::-1])
+                fixed_word = word[::-1]
+                # Normalize presentation forms
+                fixed_word = ''.join(normalize_arabic(c) for c in fixed_word)
+                fixed_words.append(fixed_word)
             else:
-                # Keep non-Arabic words as-is (numbers, English, etc.)
+                # Keep non-Arabic words as-is (numbers, English, punctuation)
                 fixed_words.append(word)
 
         # Reverse word order (RTL text was extracted as LTR)
@@ -112,6 +108,93 @@ def _reverse_arabic_words(text: str) -> str:
         fixed_lines.append(' '.join(fixed_words))
 
     return '\n'.join(fixed_lines)
+
+
+def _smart_line_merge(text: str) -> str:
+    """
+    Intelligently merge broken lines while preserving intentional breaks.
+    
+    This fixes the common PDF extraction issue where sentences are split
+    across multiple lines incorrectly.
+    
+    Strategy:
+    - Merge lines that don't end with sentence terminators
+    - Preserve lines that start with bullets, numbers, or special markers
+    - Preserve empty lines (paragraph breaks)
+    - Handle Arabic punctuation
+    """
+    if not text:
+        return text
+    
+    lines = text.split('\n')
+    merged = []
+    i = 0
+    
+    # Arabic and English sentence terminators
+    sentence_ends = ('.', '،', ':', '؛', '!', '؟', '?', ')', '}', ']', '"', '»')
+    # List/enumeration markers
+    list_markers_pattern = r'^\s*[\d\-•▪◦○●➔→\u0660-\u0669]'  # Numbers, bullets, Arabic numerals
+    
+    while i < len(lines):
+        line = lines[i]
+        
+        # Empty line - preserve as paragraph break
+        if not line.strip():
+            merged.append('')
+            i += 1
+            continue
+        
+        # Check if this is a list item or header
+        if re.match(list_markers_pattern, line):
+            merged.append(line)
+            i += 1
+            continue
+        
+        # Check if line ends with sentence terminator
+        line_stripped = line.rstrip()
+        
+        # If line ends properly, don't merge
+        if line_stripped.endswith(sentence_ends):
+            merged.append(line)
+            i += 1
+            continue
+        
+        # Line doesn't end properly - check if we should merge with next
+        if i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            
+            # Don't merge if next line is empty
+            if not next_line:
+                merged.append(line)
+                i += 1
+                continue
+            
+            # Don' merge if next line starts a list/enumeration
+            if re.match(list_markers_pattern, next_line):
+                merged.append(line)
+                i += 1
+                continue
+            
+            # Don't merge if next line looks like a header (short and capitalized)
+            if len(next_line) < 50 and next_line[0].isupper():
+                merged.append(line)
+                i += 1
+                continue
+            
+            # Merge this line with next
+            merged.append(line.rstrip() + ' ')
+            i += 1
+        else:
+            # Last line
+            merged.append(line)
+            i += 1
+    
+    # Join and clean up multiple spaces
+    result = '\n'.join(merged)
+    # Remove trailing spaces before newlines
+    result = re.sub(r' +\n', '\n', result)
+    
+    return result
 
 
 def _clean_extracted_text(text: str) -> str:
@@ -239,17 +322,64 @@ def _extract_txt(file_storage) -> Tuple[bool, str]:
         return False, f"خطأ في قراءة الملف النصي: {str(e)}"
 
 def _extract_pdf(file_storage) -> Tuple[bool, str]:
-    """Extract text from PDF file using pdfplumber."""
+    """Extract text from PDF file using PyMuPDF (faster and more accurate)."""
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        # Fallback to pdfplumber if PyMuPDF not available
+        return _extract_pdf_fallback(file_storage)
+
+    try:
+        # Read file into memory
+        pdf_bytes = file_storage.read()
+        
+        # Open PDF from bytes
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        
+        text_parts = []
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            
+            # Extract text with sorting to improve line order
+            # sort=True ensures text is extracted in reading order
+            page_text = page.get_text("text", sort=True)
+            
+            if page_text and page_text.strip():
+                text_parts.append(page_text)
+        
+        doc.close()
+
+        if not text_parts:
+            return False, "لم يتم العثور على نص في ملف PDF. قد يكون الملف يحتوي على صور فقط."
+
+        full_text = "\n\n".join(text_parts)
+
+        # Check if Arabic text is reversed (less common with PyMuPDF but still check)
+        if _is_arabic_text_reversed(full_text):
+            full_text = _reverse_arabic_words(full_text)
+
+        # Apply smart line merging (new!)
+        full_text = _smart_line_merge(full_text)
+
+        # Apply comprehensive text cleaning
+        full_text = _clean_extracted_text(full_text)
+
+        return True, full_text
+    except Exception as e:
+        return False, f"خطأ في قراءة ملف PDF: {str(e)}"
+
+
+def _extract_pdf_fallback(file_storage) -> Tuple[bool, str]:
+    """Fallback PDF extraction using pdfplumber (original method)."""
     try:
         import pdfplumber
     except ImportError:
-        return False, "مكتبة pdfplumber غير مثبتة. قم بتشغيل: pip install pdfplumber"
+        return False, "مكتبات PDF غير متوفرة. يرجى تثبيت PyMuPDF أو pdfplumber."
 
     try:
         text_parts = []
         with pdfplumber.open(file_storage) as pdf:
             for page in pdf.pages:
-                # Extract text without layout mode - it causes excessive whitespace
                 page_text = page.extract_text()
                 if page_text:
                     text_parts.append(page_text)
@@ -259,11 +389,10 @@ def _extract_pdf(file_storage) -> Tuple[bool, str]:
 
         full_text = "\n\n".join(text_parts)
 
-        # Check if Arabic text is reversed (common PDF extraction issue)
         if _is_arabic_text_reversed(full_text):
             full_text = _reverse_arabic_words(full_text)
 
-        # Apply comprehensive text cleaning
+        full_text = _smart_line_merge(full_text)
         full_text = _clean_extracted_text(full_text)
 
         return True, full_text

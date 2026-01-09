@@ -87,7 +87,10 @@
       <div class="card-body">
         <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
           <h5 class="fw-bold mb-0">الأسئلة</h5>
-          <button class="btn btn-outline-primary btn-sm" onclick="copyQuizJson()">نسخ JSON</button>
+          <div>
+            <button class="btn btn-success btn-sm me-1" id="downloadQuizBtn" onclick="downloadQuiz()" style="display:none;">📥 تحميل TXT</button>
+            <button class="btn btn-outline-primary btn-sm" onclick="copyQuizJson()">نسخ JSON</button>
+          </div>
         </div>
         <div id="quizBox" class="mt-3 empty-state">لم يتم توليد أسئلة بعد.</div>
       </div>
@@ -251,6 +254,7 @@
     if(!data.ok){ toast(data.error || "تعذر توليد الأسئلة."); return; }
     lastQuiz = data.quiz;
     renderQuiz(lastQuiz);
+    document.getElementById('downloadQuizBtn').style.display = 'inline-block';
     toast("تم توليد الأسئلة.");
   }
 
@@ -258,26 +262,43 @@
     const box = document.getElementById("quizBox");
     box.classList.remove("empty-state");
 
-    const genMethod = quiz.meta.generated_by || 'TF-IDF';
-    const methodBadge = genMethod.includes('AI') ? 'bg-info' : 'bg-warning text-dark';
+    // Handle both NLP format (meta object) and OpenAI format (source/model directly on quiz)
+    const meta = quiz.meta || {};
+    const genMethod = meta.generated_by || quiz.source || quiz.model || 'AI';
+    const questionCount = meta.question_count || (quiz.questions ? quiz.questions.length : 0);
+    const difficulty = meta.difficulty || 'متوسط';
+    const notes = quiz.notes || [];
+    
+    const methodBadge = genMethod.includes('openai') || genMethod.includes('gpt') ? 'bg-info' : 
+                        genMethod.includes('gemini') ? 'bg-primary' : 'bg-warning text-dark';
+    
     const header = `
       <div class="mb-2">
-        <span class="badge bg-success">عدد الأسئلة</span> ${quiz.meta.question_count}
-        <span class="badge bg-secondary ms-1">الصعوبة</span> ${escapeHtml(quiz.meta.difficulty)}
+        <span class="badge bg-success">عدد الأسئلة</span> ${questionCount}
+        <span class="badge bg-secondary ms-1">الصعوبة</span> ${escapeHtml(difficulty)}
         <span class="badge ${methodBadge} ms-1">التوليد: ${escapeHtml(genMethod)}</span>
       </div>
-      <div class="text-muted small mb-3">${quiz.notes.map(x=>escapeHtml(x)).join(" — ")}</div>
+      ${notes.length > 0 ? `<div class="text-muted small mb-3">${notes.map(x=>escapeHtml(x)).join(" — ")}</div>` : ''}
     `;
 
     const qHtml = quiz.questions.map((q, i) => {
       let body = "";
-      if(q.type === "اختيار من متعدد"){
+      const qType = q.type || "اختيار من متعدد";
+      const qText = q.question || q.prompt || "";
+      const choices = q.choices || [];
+      const correctIdx = q.answer_index ?? q.correct_index ?? 0;
+      const explanation = q.explanation || "";
+      
+      if(qType === "اختيار من متعدد" || choices.length > 0){
         body = `<ul class="choices">
-          ${q.choices.map((c, idx)=> `<li>${escapeHtml(c)} ${idx===q.answer_index?'<span class="answer-tag">الإجابة</span>':''}</li>`).join("")}
+          ${choices.map((c, idx)=> `<li>${escapeHtml(c)} ${idx===correctIdx?'<span class="answer-tag">الإجابة</span>':''}</li>`).join("")}
         </ul>`;
-      } else if(q.type === "أكمل الفراغ"){
+        if(explanation) {
+          body += `<div class="text-muted small mt-1">الشرح: ${escapeHtml(explanation)}</div>`;
+        }
+      } else if(qType === "أكمل الفراغ"){
         body = `<div class="text-muted mt-1">الإجابة: <span class="fw-semibold">${escapeHtml(q.answer)}</span></div>`;
-      } else if(q.type === "صح/خطأ"){
+      } else if(qType === "صح/خطأ"){
         body = `<div class="text-muted mt-1">الإجابة: <span class="fw-semibold">${escapeHtml(q.answer)}</span></div>`;
       } else {
         body = `<div class="text-muted mt-1">تلميح للمعلم: ${escapeHtml(q.answer_hint || "")}</div>`;
@@ -286,9 +307,9 @@
       return `
         <div class="q-card">
           <div class="d-flex justify-content-between flex-wrap gap-2">
-            <div class="fw-bold">${i+1}) <span class="badge bg-light text-dark">${escapeHtml(q.type)}</span></div>
+            <div class="fw-bold">${i+1}) <span class="badge bg-light text-dark">${escapeHtml(qType)}</span></div>
           </div>
-          <div class="mt-2 pre-line">${escapeHtml(q.question)}</div>
+          <div class="mt-2 pre-line">${escapeHtml(qText)}</div>
           ${body}
         </div>
       `;
@@ -302,6 +323,53 @@
     navigator.clipboard.writeText(JSON.stringify(lastQuiz, null, 2))
       .then(()=>toast("تم نسخ JSON."))
       .catch(()=>toast("تعذر النسخ."));
+  }
+
+  function downloadQuiz(){
+    if(!lastQuiz || !lastQuiz.questions){ toast("لا يوجد أسئلة للتحميل."); return; }
+    
+    const grade = document.getElementById('tGrade').value;
+    const subject = document.getElementById('tSubject').value;
+    
+    let content = `الأسئلة المولدة\n`;
+    content += `الصف: ${grade} | المادة: ${subject}\n`;
+    content += `${'='.repeat(50)}\n\n`;
+    
+    lastQuiz.questions.forEach((q, i) => {
+      const qType = q.type || 'اختيار من متعدد';
+      const qText = q.question || q.prompt || '';
+      
+      content += `السؤال ${i + 1} (${qType}):\n`;
+      content += `${qText}\n`;
+      
+      if (q.choices && q.choices.length > 0) {
+        const correctIdx = q.answer_index ?? q.correct_index ?? 0;
+        q.choices.forEach((c, j) => {
+          const marker = j === correctIdx ? '✓' : ' ';
+          content += `  ${marker} ${c}\n`;
+        });
+        if (q.explanation) {
+          content += `\n  الشرح: ${q.explanation}\n`;
+        }
+      } else if (q.answer) {
+        content += `الإجابة: ${q.answer}\n`;
+      } else if (q.answer_hint) {
+        content += `تلميح: ${q.answer_hint}\n`;
+      }
+      content += '\n';
+    });
+    
+    // Create and download file
+    const blob = new Blob([content], {type: 'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `أسئلة_${subject}_${grade}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('تم تحميل الأسئلة.');
   }
 </script>
 {% endblock %}

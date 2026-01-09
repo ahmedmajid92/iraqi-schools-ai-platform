@@ -133,8 +133,47 @@ from .embeddings import (
     find_odd_one_out,
 )
 
+# === Local LLM (Qwen2.5-1.5B-Instruct) - Optional ===
+# Provides AI-powered question generation using Qwen2.5 model
+try:
+    from .generative import (
+        is_generative_available,
+        is_model_loaded,
+        generate_question,
+        generate_questions_batch,
+        generate_mcq_distractors,
+        paraphrase_question,
+        summarize_for_question,
+        unload_model,
+    )
+except ImportError:
+    # Transformers/torch not installed - provide stub functions
+    def is_generative_available():
+        return False
+
+    def is_model_loaded():
+        return False
+
+    def generate_question(*args, **kwargs):
+        return None
+
+    def generate_questions_batch(*args, **kwargs):
+        return []
+
+    def generate_mcq_distractors(*args, **kwargs):
+        return []
+
+    def paraphrase_question(q, *args, **kwargs):
+        return q
+
+    def summarize_for_question(t, *args, **kwargs):
+        return t
+
+    def unload_model():
+        pass
+
 # Version
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 # All public exports
 __all__ = [

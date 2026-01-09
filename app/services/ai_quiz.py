@@ -1,7 +1,7 @@
 """
 AI-powered quiz generation with enhanced NLP fallback.
-Uses Gemini API if available, otherwise uses pattern-based generation
-with morphological analysis and semantic distractors.
+Uses OpenAI API (gpt-5-nano) as primary, Gemini as secondary fallback,
+NLP as final fallback with pattern-based generation.
 """
 import os
 import re
@@ -30,28 +30,50 @@ from .arabic_nlp import (
 def generate_quiz_smart(text: str, num_questions: int = 10, grade: str = "", subject: str = "") -> Dict:
     """
     Generate quiz using AI if available, otherwise use enhanced NLP.
-
-    Args:
-        text: The educational text to generate questions from
-        num_questions: Number of questions to generate
-        grade: Grade level (e.g., "الصف الخامس")
-        subject: Subject name (e.g., "العلوم")
-
-    Returns:
-        Dict with quiz questions and metadata
+    
+    Priority:
+    1. OpenAI API (gpt-5-nano) - Primary
+    2. Gemini API - Secondary fallback  
+    3. Qwen2.5 Local LLM - Third fallback (if ENABLE_LOCAL_LLM=1)
+    4. Enhanced NLP (pattern-based) - Final fallback
     """
-    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-
-    if api_key:
+    # Try OpenAI first (primary)
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key:
         try:
-            result = _generate_with_gemini(text, num_questions, grade, subject, api_key)
+            from .openai_quiz import generate_with_openai
+            result = generate_with_openai(text, num_questions, grade, subject)
             if result:
                 return result
         except Exception as e:
-            print(f"AI generation failed, falling back to NLP: {e}")
+            print(f"OpenAI generation failed: {e}")
+    
+    # Try Gemini as secondary fallback
+    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if gemini_key:
+        try:
+            result = _generate_with_gemini(text, num_questions, grade, subject, gemini_key)
+            if result:
+                return result
+        except Exception as e:
+            print(f"Gemini generation failed: {e}")
+    
+    # Try Qwen2.5 Local LLM if enabled
+    if os.getenv("ENABLE_LOCAL_LLM") == "1":
+        try:
+            from .arabic_nlp import is_llm_available
+            if is_llm_available():
+                print("Using Qwen2.5 local LLM for quiz generation...")
+                # Use the enhanced NLP which will utilize Qwen if available
+                return _generate_enhanced_nlp(text, num_questions, grade, subject)
+        except Exception as e:
+            print(f"Qwen2.5 generation failed: {e}")
 
-    # Fallback to enhanced NLP
+    # Final fallback to basic enhanced NLP (pattern-based, no LLM)
+    print("Using basic NLP (pattern-based) for quiz generation...")
     return _generate_enhanced_nlp(text, num_questions, grade, subject)
+
+
 
 
 def _generate_with_gemini(text: str, num_questions: int, grade: str, subject: str, api_key: str) -> Optional[Dict]:
@@ -251,6 +273,13 @@ class EnhancedQuizGenerator:
     def __init__(self):
         self.pattern_matcher = PatternMatcher()
         self.used_sentences: Set[str] = set()
+        self._used_generative = False
+
+    def _get_generator_name(self) -> str:
+        """Get the name of the generator used."""
+        if self._used_generative:
+            return "Enhanced NLP 2.0 + Qwen2.5"
+        return "Enhanced NLP 2.0"
 
     def generate(self, text: str, num_questions: int, grade: str = "", subject: str = "") -> Dict:
         """Generate quiz with enhanced NLP techniques."""
@@ -313,6 +342,31 @@ class EnhancedQuizGenerator:
                 questions.append(q)
                 self.used_sentences.add(fact['sentence'])
 
+        # === Phase 1.5: Generative Model Questions (Qwen2.5) ===
+        if len(questions) < num_questions:
+            try:
+                from .arabic_nlp import is_generative_available, generate_question
+
+                if is_generative_available():
+                    # Get sentences not yet used
+                    unused_sentences = [s for s in sentences if s not in self.used_sentences and len(s) >= 30]
+
+                    for sent in unused_sentences[:5]:  # Try up to 5 sentences
+                        if len(questions) >= num_questions:
+                            break
+
+                        generated_q = generate_question(sent)
+                        if generated_q and len(generated_q) > 10:
+                            questions.append({
+                                "type": "سؤال قصير",
+                                "question": generated_q,
+                                "answer_hint": sent
+                            })
+                            self.used_sentences.add(sent)
+                            self._used_generative = True
+            except ImportError:
+                pass  # Generative model not available
+
         # === Phase 2: Term-based MCQ generation ===
         remaining = num_questions - len(questions)
         if remaining > 0:
@@ -340,7 +394,7 @@ class EnhancedQuizGenerator:
                 "grade": grade or "غير محدد",
                 "difficulty": difficulty,
                 "question_count": len(questions),
-                "generated_by": "Enhanced NLP 2.0"
+                "generated_by": self._get_generator_name()
             },
             "questions": questions,
             "notes": [
@@ -572,6 +626,7 @@ class EnhancedQuizGenerator:
     def _get_smart_distractors(self, correct_answer: str, context_tokens: List[str], num: int) -> List[str]:
         """
         Get smart distractors using multiple strategies:
+        0. Generative model (Qwen2.5 - if available)
         1. Semantic similarity (embeddings)
         2. Same-root words
         3. POS-matched context words
@@ -581,6 +636,24 @@ class EnhancedQuizGenerator:
         correct_normalized = normalize_arabic(correct_answer)
         correct_lemma = extract_lemma(correct_answer)
         used: Set[str] = {correct_normalized, correct_lemma}
+
+        # Strategy 0: Generative model distractors (Qwen2.5)
+        try:
+            from .arabic_nlp import is_generative_available, generate_mcq_distractors
+
+            if is_generative_available():
+                context_text = " ".join(context_tokens[:30])
+                generated = generate_mcq_distractors(correct_answer, context_text, num)
+                for word in generated:
+                    norm = normalize_arabic(word)
+                    if norm not in used and len(word) >= 2:
+                        distractors.append(word)
+                        used.add(norm)
+                        self._used_generative = True
+                        if len(distractors) >= num:
+                            return distractors
+        except ImportError:
+            pass
 
         # Strategy 1: Semantic distractors (if embeddings available)
         if is_embeddings_available():

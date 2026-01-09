@@ -30,12 +30,20 @@
         </div>
 
         <div class="mb-2">
-          <label class="form-label">اختيار صف (لملء المواد تلقائيًا)</label>
-          <select class="form-select" id="sGrade">
-            {% for g in curriculum.grades %}
-              <option value="{{ g.grade }}">{{ g.grade }}</option>
-            {% endfor %}
-          </select>
+          {% if session.get('role') == 'teacher' %}
+            <label class="form-label">اختيار صف (لملء المواد تلقائيًا)</label>
+            <select class="form-select" id="sGrade">
+              {% for g in curriculum.grades %}
+                <option value="{{ g.grade }}">{{ g.grade }}</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <label class="form-label">الصف الدراسي</label>
+            <input class="form-control" id="sGrade" value="{{ session.get('grade', '') }}" readonly>
+            {% if not session.get('grade') %}
+              <small class="text-muted">لم يتم تحديد الصف في حسابك. يمكنك تحديثه من إعدادات الحساب.</small>
+            {% endif %}
+          {% endif %}
         </div>
 
         <div class="mb-2">
