@@ -131,8 +131,48 @@
 </style>
 
 <div class="quiz-card">
+  <!-- Start Screen -->
+  <div class="card rounded-4 shadow-sm" id="startScreen">
+    <div class="card-body text-center py-5">
+      <h2 class="mb-4">🖥️ مختبر الحاسوب التفاعلي</h2>
+      <p class="lead mb-4">اختبر معلوماتك في الثقافة الرقمية وعلوم الحاسوب</p>
+      
+      <div class="row g-3 mb-4 text-start">
+        <div class="col-md-6">
+          <div class="p-3 bg-light rounded">
+            <h6 class="fw-bold">📊 المميزات</h6>
+            <ul class="small mb-0">
+              <li>أسئلة تتكيف مع مستواك</li>
+              <li>نظام نقاط ومكافآت</li>
+              <li>شرح تفصيلي للإجابات</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="p-3 bg-light rounded">
+            <h6 class="fw-bold">⚙️ الإعدادات</h6>
+            <ul class="small mb-0">
+              <li>المستوى: <span class="fw-bold">{{ grade_settings.difficulty }}</span></li>
+              <li>الوقت لكل سؤال: <span class="fw-bold">{{ grade_settings.timer }}ث</span></li>
+              <li>عدد الأسئلة: غير محدود</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <button class="btn btn-primary btn-lg px-5" id="startTestBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="ms-2" viewBox="0 0 16 16">
+          <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393"/>
+        </svg>
+        ابدأ الاختبار
+      </button>
+      
+      <p class="text-muted small mt-3">يمكنك إنهاء الاختبار في أي وقت</p>
+    </div>
+  </div>
+
   <!-- Stats Panel -->
-  <div class="stats-panel" id="statsPanel">
+  <div class="stats-panel" id="statsPanel" style="display:none;">
     <div class="row g-2">
       <div class="col-3 stat-item">
         <div class="stat-value" id="statPoints">0</div>
@@ -154,6 +194,10 @@
     <div id="badgesContainer" class="mt-2" style="display:none;">
       <small>الشارات:</small>
       <div id="badgesList"></div>
+    </div>
+    <!-- End Test Button -->
+    <div class="text-center mt-2">
+      <button class="btn btn-sm btn-outline-light" id="endTestBtn">إنهاء الاختبار</button>
     </div>
   </div>
 
@@ -536,6 +580,7 @@
     }
     
     function showDone(state) {
+      document.getElementById('statsPanel').style.display = 'none';
       document.getElementById('questionCard').style.display = 'none';
       document.getElementById('doneCard').style.display = 'block';
       document.getElementById('finalPoints').textContent = state.points || 0;
@@ -546,11 +591,40 @@
     
     async function restart() {
       await fetch('/api/lab/reset', {method: 'POST'});
+      document.getElementById('startScreen').style.display = 'none';
       document.getElementById('questionCard').style.display = 'block';
+      document.getElementById('statsPanel').style.display = 'block';
       document.getElementById('doneCard').style.display = 'none';
       loadQuestion();
     }
     
+    function startTest() {
+      document.getElementById('startScreen').style.display = 'none';
+      document.getElementById('statsPanel').style.display = 'block';
+      document.getElementById('questionCard').style.display = 'block';
+      loadQuestion();
+    }
+    
+    async function endTest() {
+      if (!confirm('هل أنت متأكد من إنهاء الاختبار؟')) return;
+      
+      if (timerInterval) clearInterval(timerInterval);
+      const currentState = await getCurrentState();
+      showDone(currentState);
+    }
+    
+    async function getCurrentState() {
+      try {
+        const res = await fetch('/api/lab/next-question');
+        const data = await res.json();
+        return data.state || {};
+      } catch {
+        return {};
+      }
+    }
+    
+    document.getElementById('startTestBtn').onclick = startTest;
+    document.getElementById('endTestBtn').onclick = endTest;
     document.getElementById('nextBtn').onclick = loadQuestion;
     document.getElementById('restartBtn').onclick = restart;
     document.getElementById('closeBadgePopup').onclick = () => {
@@ -564,7 +638,7 @@
       }
     };
     
-    loadQuestion();
+    // Don't auto-load question on init anymore
   }
   
   if (document.readyState === 'loading') {

@@ -88,6 +88,7 @@
         <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
           <h5 class="fw-bold mb-0">الأسئلة</h5>
           <div>
+            <button class="btn btn-danger btn-sm me-1" id="downloadQuizPdfBtn" onclick="downloadQuizPdf()" style="display:none;">📄 تحميل PDF</button>
             <button class="btn btn-success btn-sm me-1" id="downloadQuizBtn" onclick="downloadQuiz()" style="display:none;">📥 تحميل TXT</button>
             <button class="btn btn-outline-primary btn-sm" onclick="copyQuizJson()">نسخ JSON</button>
           </div>
@@ -255,6 +256,7 @@
     lastQuiz = data.quiz;
     renderQuiz(lastQuiz);
     document.getElementById('downloadQuizBtn').style.display = 'inline-block';
+    document.getElementById('downloadQuizPdfBtn').style.display = 'inline-block';
     toast("تم توليد الأسئلة.");
   }
 
@@ -370,6 +372,37 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast('تم تحميل الأسئلة.');
+  }
+  
+  async function downloadQuizPdf() {
+    if(!lastQuiz || !lastQuiz.questions){ toast("لا يوجد أسئلة للتحميل."); return; }
+    
+    try {
+      const response = await fetch('/api/teacher/quiz-pdf', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ quiz: lastQuiz })
+      });
+      
+      if (!response.ok) {
+        toast('خطأ في توليد  ملف PDF');
+        return;
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `أسئلة_${document.getElementById('tSubject').value}_${document.getElementById('tGrade').value}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast('تم تحميل الأسئلة PDF.');
+    } catch (err) {
+      console.error(err);
+      toast('خطأ في التحميل');
+    }
   }
 </script>
 {% endblock %}

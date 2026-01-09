@@ -1,8 +1,9 @@
 import json
+import io
 from datetime import datetime
 from pathlib import Path
 
-from flask import Blueprint, current_app, render_template, request, jsonify, session, Response, redirect, url_for, flash
+from flask import Blueprint, current_app, render_template, request, jsonify, session, Response, redirect, url_for, flash, send_file
 
 from .db import insert_json, list_rows, get_row, get_user_stats, get_user_progress, create_user, get_user_by_username, get_user_by_id
 from .services import auth
@@ -341,6 +342,33 @@ def api_student_reading_analyze():
     insert_json(db_path, "reading_results", now_iso(), label, json.dumps(result, ensure_ascii=False))
 
     return jsonify({"ok": True, "result": result})
+
+@bp.post("/api/teacher/quiz-pdf")
+@login_required
+def api_teacher_quiz_pdf():
+    """Generate PDF from quiz data."""
+    from app.services.pdf_export import export_quiz_pdf, is_pdf_available
+    
+    if not is_pdf_available():
+        return jsonify({"ok": False, "error": "PDF export not available. Install reportlab."}), 500
+    
+    payload = request.get_json(force=True)
+    quiz = payload.get("quiz")
+    
+    if not quiz:
+        return jsonify({"ok": False, "error": "No quiz data provided"}), 400
+    
+    try:
+        pdf_bytes = export_quiz_pdf(quiz, include_answers=True)
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name='quiz.pdf'
+        )
+    except Exception as e:
+        print(f"Error generating PDF: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 # ---------- Computer Lab ----------
 # Grade-based settings for difficulty and timer
