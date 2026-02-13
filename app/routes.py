@@ -136,6 +136,11 @@ def signup_page():
     # Validate role
     if role not in ['student', 'teacher']:
         role = 'student'
+
+    # Validate grade for students
+    if role == 'student' and not grade:
+        flash("يرجى اختيار الصف الدراسي", "error")
+        return redirect(url_for('main.signup_page'))
     
     # Hash password and create user
     password_hash = auth.hash_password(password)

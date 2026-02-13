@@ -91,7 +91,7 @@ def _generate_with_gemini(text: str, num_questions: int, grade: str, subject: st
     # Initialize client with API key
     client = genai.Client(api_key=api_key)
 
-    prompt = f"""أنت معلم خبير في إنشاء الاختبارات التعليمية.
+    prompt = f"""أنت أستاذ خبير في إنشاء الاختبارات التعليمية.
 بناءً على النص التالي، أنشئ {num_questions} أسئلة متنوعة ومناسبة للمستوى الدراسي.
 
 المادة: {subject or 'غير محدد'}
@@ -176,7 +176,7 @@ def _generate_with_gemini(text: str, num_questions: int, grade: str, subject: st
                 "questions": questions,
                 "notes": [
                     "تم توليد هذه الأسئلة باستخدام الذكاء الاصطناعي.",
-                    "يُفضّل أن يراجعها المعلم قبل الاعتماد النهائي."
+                    "يُفضّل أن يراجعها الاستاذ قبل الاعتماد النهائي."
                 ]
             }
     except Exception as e:
@@ -203,7 +203,7 @@ def _generate_with_gemini_legacy(text: str, num_questions: int, grade: str, subj
     if not model:
         return None
 
-    prompt = f"""أنت معلم خبير في إنشاء الاختبارات التعليمية.
+    prompt = f"""أنت أستاذ خبير في إنشاء الاختبارات التعليمية.
 بناءً على النص التالي، أنشئ {num_questions} أسئلة متنوعة ومناسبة للمستوى الدراسي.
 
 المادة: {subject or 'غير محدد'}
@@ -255,7 +255,7 @@ def _generate_with_gemini_legacy(text: str, num_questions: int, grade: str, subj
                 "questions": questions,
                 "notes": [
                     "تم توليد هذه الأسئلة باستخدام الذكاء الاصطناعي.",
-                    "يُفضّل أن يراجعها المعلم قبل الاعتماد النهائي."
+                    "يُفضّل أن يراجعها الاستاذ قبل الاعتماد النهائي."
                 ]
             }
     except Exception as e:
@@ -400,7 +400,7 @@ class EnhancedQuizGenerator:
             "notes": [
                 "تم توليد هذه الأسئلة باستخدام تحليل لغوي متقدم.",
                 "يشمل التحليل: الأنماط النحوية، التحليل الصرفي، والتشابه الدلالي.",
-                "يُفضّل أن يراجعها المعلم قبل الاعتماد النهائي."
+                "يُفضّل أن يراجعها الاستاذ قبل الاعتماد النهائي."
             ]
         }
 

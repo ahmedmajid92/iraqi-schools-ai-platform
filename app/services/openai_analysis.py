@@ -39,7 +39,7 @@ def _analyze_with_openai(text: str, label: str, api_key: str) -> Optional[Dict]:
         
         client = OpenAI(api_key=api_key)
         
-        prompt = f"""أنت معلم لغة عربية خبير. حلل النص التالي وأعطني:
+        prompt = f"""أنت أستاذ لغة عربية خبير. حلل النص التالي وأعطني:
 
 1. مستوى الصعوبة (سهل/متوسط/صعب)
 2. عدد الجمل
@@ -70,7 +70,7 @@ def _analyze_with_openai(text: str, label: str, api_key: str) -> Optional[Dict]:
         response = client.chat.completions.create(
             model="gpt-5-mini",
             messages=[
-                {"role": "system", "content": "أنت معلم لغة عربية. أجب بصيغة JSON فقط."},
+                {"role": "system", "content": "أنت أستاذ لغة عربية. أجب بصيغة JSON فقط."},
                 {"role": "user", "content": prompt}
             ],
             max_completion_tokens=2000,
@@ -100,7 +100,7 @@ def _analyze_with_gemini(text: str, label: str, api_key: str) -> Optional[Dict]:
         
         client = genai.Client(api_key=api_key)
         
-        prompt = f"""أنت معلم لغة عربية خبير. حلل النص التالي وأعطني:
+        prompt = f"""أنت أستاذ لغة عربية خبير. حلل النص التالي وأعطني:
 
 1. مستوى الصعوبة (سهل/متوسط/صعب)
 2. عدد الجمل
@@ -163,7 +163,7 @@ def _analyze_with_gemini_legacy(text: str, label: str, api_key: str, genai) -> O
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         
-        prompt = f"""أنت معلم لغة عربية خبير. حلل النص التالي وأعطني تحليلاً شاملاً بصيغة JSON.
+        prompt = f"""أنت أستاذ لغة عربية خبير. حلل النص التالي وأعطني تحليلاً شاملاً بصيغة JSON.
 
 النص:
 {text[:3000]}

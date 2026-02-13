@@ -57,14 +57,14 @@
             <label for="role" class="form-label fw-semibold">نوع الحساب</label>
             <select class="form-select" id="role" name="role" required>
               <option value="student" selected>طالب</option>
-              <option value="teacher">معلم</option>
+              <option value="teacher">أستاذ</option>
             </select>
           </div>
 
           <div class="mb-4" id="gradeField">
             <label for="grade" class="form-label fw-semibold">الصف الدراسي</label>
-            <select class="form-select" id="grade" name="grade">
-              <option value="">اختر الصف (اختياري)</option>
+            <select class="form-select" id="grade" name="grade" required>
+              <option value="">اختر الصف</option>
               <option value="الرابع العلمي">الرابع العلمي</option>
               <option value="الرابع الأدبي">الرابع الأدبي</option>
               <option value="الخامس العلمي">الخامس العلمي</option>
@@ -141,8 +141,10 @@ document.getElementById('role').addEventListener('change', function() {
   const gradeField = document.getElementById('gradeField');
   if (this.value === 'teacher') {
     gradeField.style.display = 'none';
+    document.getElementById('grade').required = false;
   } else {
     gradeField.style.display = 'block';
+    document.getElementById('grade').required = true;
   }
 });
 </script>

@@ -104,7 +104,7 @@ def teacher_required(f):
             flash('يرجى تسجيل الدخول أولاً', 'warning')
             return redirect(url_for('main.login_page', next=request.url))
         if not is_teacher():
-            flash('هذه الصفحة للمعلمين فقط', 'danger')
+            flash('هذه الصفحة للأساتذة فقط', 'danger')
             return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated_function

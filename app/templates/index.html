@@ -4,13 +4,15 @@
 <div class="hero p-4 p-md-5 rounded-4 shadow-sm">
   <div class="row align-items-center g-4">
     <div class="col-lg-7">
-      <h1 class="display-6 fw-bold mb-3">منصة مدرسية ذكية للمعلم والطلاب</h1>
+      <h1 class="display-6 fw-bold mb-3">منصة مدرسية ذكية للاستاذ والطلاب</h1>
       <p class="lead mb-3">
-        تحضير درس + توليد أسئلة من النص + خطة مذاكرة + مختبر قراءة عربي + مختبر حاسوب تفاعلي.
+        تحضير درس + توليد أسئلة من النص + خطة مذاكرة +  مختبر حاسوب تفاعلي.
       </p>
       <div class="d-flex flex-wrap gap-2">
         {% if session.get('role') == 'teacher' %}
-          <a href="/teacher" class="btn btn-light btn-lg">ابدأ كمعلم</a>
+          <a href="/teacher" class="btn btn-light btn-lg">ابدأ كأستاذ</a>
+        {% else %}
+          <a href="/login" class="btn btn-outline-light btn-lg">ابدأ كأستاذ</a>
         {% endif %}
         <a href="/student" class="btn btn-outline-light btn-lg">ابدأ كطالب</a>
         {% if 'علمي' in (session.get('grade') or '') or session.get('role') == 'teacher' %}
@@ -25,7 +27,7 @@
       <div class="glass rounded-4 p-3">
         <div class="fw-bold mb-2">مواد نموذجية (قابلة للتعديل)</div>
         <ul class="mb-0 small">
-          {% for g in curriculum.grades[:3] %}
+          {% for g in curriculum.grades[:6] %}
             <li class="mb-1"><span class="fw-semibold">{{ g.grade }}:</span> {{ g.subjects|join("، ") }}</li>
           {% endfor %}
         </ul>
@@ -39,7 +41,7 @@
   <div class="col-md-4">
     <div class="card rounded-4 shadow-sm h-100">
       <div class="card-body">
-        <h5 class="card-title fw-bold">وضع المعلم</h5>
+        <h5 class="card-title fw-bold">وضع الاستاذ</h5>
         <p class="card-text">خطة درس جاهزة + توزيع وقت الحصة + أسئلة سريعة من نص الدرس.</p>
         <a href="/teacher" class="btn btn-primary">الدخول</a>
       </div>

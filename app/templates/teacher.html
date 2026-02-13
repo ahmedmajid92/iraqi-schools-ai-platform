@@ -3,7 +3,7 @@
 
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
   <div>
-    <h2 class="fw-bold mb-1">وضع المعلم</h2>
+    <h2 class="fw-bold mb-1">وضع الاستاذ</h2>
     <div class="text-muted">تحضير درس + توليد أسئلة من نص الدرس</div>
   </div>
 </div>
@@ -303,7 +303,7 @@
       } else if(qType === "صح/خطأ"){
         body = `<div class="text-muted mt-1">الإجابة: <span class="fw-semibold">${escapeHtml(q.answer)}</span></div>`;
       } else {
-        body = `<div class="text-muted mt-1">تلميح للمعلم: ${escapeHtml(q.answer_hint || "")}</div>`;
+        body = `<div class="text-muted mt-1">تلميح للاستاذ: ${escapeHtml(q.answer_hint || "")}</div>`;
       }
 
       return `

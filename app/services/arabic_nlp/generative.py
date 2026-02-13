@@ -243,14 +243,14 @@ def generate_question(context: str, answer: str = None) -> Optional[str]:
 
     # Build the prompt
     if answer:
-        user_message = f"""أنت معلم عربي خبير. اقرأ النص التالي وأنشئ سؤالاً تعليمياً واحداً فقط.
+        user_message = f"""أنت أستاذ عربي خبير. اقرأ النص التالي وأنشئ سؤالاً تعليمياً واحداً فقط.
 الإجابة المطلوبة هي: {answer}
 
 النص: {context[:500]}
 
 اكتب السؤال فقط بدون أي شرح أو مقدمة:"""
     else:
-        user_message = f"""أنت معلم عربي خبير. اقرأ النص التالي وأنشئ سؤالاً تعليمياً واحداً فقط.
+        user_message = f"""أنت أستاذ عربي خبير. اقرأ النص التالي وأنشئ سؤالاً تعليمياً واحداً فقط.
 
 النص: {context[:500]}
 
@@ -325,7 +325,7 @@ def generate_mcq_distractors(correct_answer: str, context: str, num: int = 3) ->
     if _model is None:
         return []
 
-    user_message = f"""أنت معلم عربي تنشئ اختبارات.
+    user_message = f"""أنت أستاذ عربي تنشئ اختبارات.
 الإجابة الصحيحة هي: {correct_answer}
 السياق: {context[:200]}
 
