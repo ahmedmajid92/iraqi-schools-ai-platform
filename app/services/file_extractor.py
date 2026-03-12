@@ -4,6 +4,7 @@ Supports: PDF, Word (.docx), and plain text files.
 """
 import os
 import re
+import unicodedata
 from typing import Tuple
 
 
@@ -15,45 +16,27 @@ def _is_arabic_text_reversed(text: str) -> bool:
     """
     # Check for presentation forms (FE70-FEFF range) which indicate PDF reversal
     presentation_forms = sum(1 for c in text if '\uFE70' <= c <= '\uFEFF')
-    if presentation_forms > 20:  # If many presentation forms, likely reversed
+    if presentation_forms > 20:
         return True
     
-    # Check common reversed patterns
+    # Substring check for whole distinctive words (removed short 2-letter strings)
     reversed_patterns = [
-        'ﻊﺿﺃ',  # أضع reversed (presentation form)
-        'ﻁﻐﺿﺃ',  # أضغط reversed
-        'ﺭﺎﺗﺧﺃ',  # أختار reversed
-        'بوساحلا',  # الحاسوب reversed
-        'عبارلا',  # الرابع reversed
-        'ىلع',  # على reversed
-        'يف',  # في reversed
-        'نم',  # من reversed
-        'نع',  # عن reversed
-        'باتكلا',  # الكتاب reversed
-        'ةسردملا',  # المدرسة reversed
-        'بلاطلا',  # الطالب reversed
-        'دنع',  # عند reversed
-        'سماخلا',  # الخامس reversed
-        'سداسلا',  # السادس reversed
-        'لولأا',  # الأول reversed
-        'ةلومحملا',  # المحمولة reversed (lowercase)
-        'ﺔﻟﻭﻣﺣﻣﻟﺍ',  # المحمولة reversed (presentation)
+        'ﻊﺿﺃ', 'ﻁﻐﺿﺃ', 'ﺭﺎﺗﺧﺃ', 'بوساحلا', 'عبارلا', 'ىلع', 'باتكلا', 
+        'ةسردملا', 'بلاطلا', 'دنع', 'سماخلا', 'سداسلا', 'لولأا', 
+        'ةلومحملا', 'ﺔﻟﻭﻣﺣﻣﻟﺍ'
     ]
     
-    reversed_count = sum(1 for pattern in reversed_patterns if pattern in text)
-    
-    # If we find ANY reversed patterns, the text is reversed
-    if reversed_count > 0:
-        return True
-    
-    # Fallback: check word patterns
-    # In correct Arabic, words starting with "ال" are common
-    # In reversed Arabic, words ending with "لا" are common
+    for pattern in reversed_patterns:
+        if pattern in text:
+            return True
+            
+    # Fallback: check word patterns (words starting with 'ال' vs ending with 'لا')
     words = text.split()
     al_start = sum(1 for w in words if w.startswith('ال'))
     al_end = sum(1 for w in words if w.endswith('لا'))
     
-    if al_end > al_start and al_end >= 2:
+    # Require a strong signal to avoid false positives
+    if al_end > (al_start * 3) and al_end >= 5:
         return True
     
     return False
@@ -62,18 +45,8 @@ def _is_arabic_text_reversed(text: str) -> bool:
 def _reverse_arabic_words(text: str) -> str:
     """
     Fix reversed Arabic text by reversing characters and word order.
-    Enhanced to handle presentation forms.
+    Enhanced to handle presentation forms using proper unicode normalization.
     """
-    def normalize_arabic(char):
-        """Convert Arabic presentation forms to standard forms."""
-        # Presentation forms B (FE70-FEFF) -> Standard Arabic (0600-06FF)
-        code = ord(char)
-        if 0xFE70 <= code <= 0xFEFF:
-            # Simple mapping (not perfect but helps)
-            # This is a simplified approach
-            return char  # Keep as-is for now, reversal will fix it
-        return char
-    
     lines = text.split('\n')
     fixed_lines = []
 
@@ -82,7 +55,6 @@ def _reverse_arabic_words(text: str) -> str:
             fixed_lines.append(line)
             continue
 
-        # Split line into words
         words = line.split()
         fixed_words = []
 
@@ -96,8 +68,8 @@ def _reverse_arabic_words(text: str) -> str:
             if arabic_chars > len(word) * 0.3:  # More than 30% Arabic
                 # Reverse the characters within the word
                 fixed_word = word[::-1]
-                # Normalize presentation forms
-                fixed_word = ''.join(normalize_arabic(c) for c in fixed_word)
+                # Normalize presentation forms to Standard Arabic
+                fixed_word = unicodedata.normalize('NFKC', fixed_word)
                 fixed_words.append(fixed_word)
             else:
                 # Keep non-Arabic words as-is (numbers, English, punctuation)
@@ -265,8 +237,8 @@ def _clean_extracted_text(text: str) -> str:
     lines = text.split('\n')
     cleaned_lines = []
     for line in lines:
-        # Keep line if it has at least one letter (Arabic or Latin)
-        if re.search(r'[\u0600-\u06FF\u0750-\u077Fa-zA-Z]', line):
+        # Keep line if it has at least one letter (Arabic incl. presentation forms or Latin)
+        if re.search(r'[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFFa-zA-Z]', line):
             cleaned_lines.append(line)
         elif line.strip() == '':
             # Keep empty lines (paragraph breaks)
@@ -354,15 +326,16 @@ def _extract_pdf(file_storage) -> Tuple[bool, str]:
 
         full_text = "\n\n".join(text_parts)
 
-        # Check if Arabic text is reversed (less common with PyMuPDF but still check)
+        # 1. ALWAYS clean the extracted text FIRST to remove zero-width chars and normalize spaces!
+        # This is critical because otherwise string matching fails due to invisible characters.
+        full_text = _clean_extracted_text(full_text)
+
+        # 2. Check if Arabic text is reversed
         if _is_arabic_text_reversed(full_text):
             full_text = _reverse_arabic_words(full_text)
 
-        # Apply smart line merging (new!)
+        # 3. Apply smart line merging
         full_text = _smart_line_merge(full_text)
-
-        # Apply comprehensive text cleaning
-        full_text = _clean_extracted_text(full_text)
 
         return True, full_text
     except Exception as e:
@@ -389,11 +362,12 @@ def _extract_pdf_fallback(file_storage) -> Tuple[bool, str]:
 
         full_text = "\n\n".join(text_parts)
 
+        full_text = _clean_extracted_text(full_text)
+
         if _is_arabic_text_reversed(full_text):
             full_text = _reverse_arabic_words(full_text)
 
         full_text = _smart_line_merge(full_text)
-        full_text = _clean_extracted_text(full_text)
 
         return True, full_text
     except Exception as e:

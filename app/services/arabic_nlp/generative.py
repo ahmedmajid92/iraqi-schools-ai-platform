@@ -15,6 +15,7 @@ To enable, set environment variable:
 import os
 import re
 from typing import List, Optional
+from app.env import get_env
 
 # Lazy-loaded model and tokenizer
 _model = None
@@ -30,7 +31,8 @@ MIN_ARABIC_RATIO = 0.6
 
 def _is_enabled() -> bool:
     """Check if generative model is explicitly enabled via environment variable."""
-    return os.getenv("ENABLE_LOCAL_LLM", "").strip() in ("1", "true", "yes")
+    val = str(get_env("ENABLE_LOCAL_LLM", ""))
+    return val.strip() in ("1", "true", "yes")
 
 
 def _get_cache_dir() -> str:

@@ -9,6 +9,7 @@ import json
 import hashlib
 import logging
 from typing import Dict, List, Optional, Tuple
+from app.env import get_env
 from pathlib import Path
 
 # Setup logging
@@ -30,14 +31,14 @@ except ImportError:
 # Constants
 MAX_WORDS = 5000  # Maximum words to send to API
 MAX_OUTPUT_TOKENS = 16000  # Max tokens for response
-# GPT-5-mini - Latest model with better quality
-MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-5-mini")
+# GPT-4o-mini - Latest fast/cheap model
+MODEL_NAME = get_env("OPENAI_MODEL", "gpt-4o-mini")
 CACHE_TTL = 86400 * 7  # 7 days cache
 
 
 def _get_openai_client():
     """Get OpenAI client if API key is available."""
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = get_env("OPENAI_API_KEY")
     if not api_key:
         return None
     try:

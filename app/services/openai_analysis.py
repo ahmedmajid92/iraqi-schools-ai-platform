@@ -6,6 +6,7 @@ import os
 import json
 import re
 from typing import Dict, Optional
+from app.env import get_env
 
 
 def analyze_with_ai(text: str, label: str = "تحليل") -> Optional[Dict]:
@@ -16,14 +17,14 @@ def analyze_with_ai(text: str, label: str = "تحليل") -> Optional[Dict]:
         Dict with analysis results or None if failed
     """
     # Try OpenAI first
-    openai_key = os.getenv("OPENAI_API_KEY")
+    openai_key = get_env("OPENAI_API_KEY")
     if openai_key:
         result = _analyze_with_openai(text, label, openai_key)
         if result:
             return result
     
     # Try Gemini as fallback
-    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    gemini_key = get_env("GEMINI_API_KEY") or get_env("GOOGLE_API_KEY")
     if gemini_key:
         result = _analyze_with_gemini(text, label, gemini_key)
         if result:
@@ -67,8 +68,10 @@ def _analyze_with_openai(text: str, label: str, api_key: str) -> Optional[Dict]:
   "notes": ["ملاحظة 1", "ملاحظة 2"]
 }}"""
 
+        model_name = get_env("OPENAI_MODEL", "gpt-4o-mini")
+        
         response = client.chat.completions.create(
-            model="gpt-5-mini",
+            model=model_name,
             messages=[
                 {"role": "system", "content": "أنت أستاذ لغة عربية. أجب بصيغة JSON فقط."},
                 {"role": "user", "content": prompt}
@@ -83,7 +86,7 @@ def _analyze_with_openai(text: str, label: str, api_key: str) -> Optional[Dict]:
         if json_match:
             data = json.loads(json_match.group())
             data["source"] = "openai"
-            data["model"] = "gpt-5-mini"
+            data["model"] = model_name
             return data
         
         return None

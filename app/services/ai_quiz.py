@@ -8,6 +8,7 @@ import re
 import json
 import random
 from typing import Dict, List, Optional, Set
+from app.env import get_env
 
 # Import from the new arabic_nlp package
 from .arabic_nlp import (
@@ -38,7 +39,7 @@ def generate_quiz_smart(text: str, num_questions: int = 10, grade: str = "", sub
     4. Enhanced NLP (pattern-based) - Final fallback
     """
     # Try OpenAI first (primary)
-    openai_key = os.getenv("OPENAI_API_KEY")
+    openai_key = get_env("OPENAI_API_KEY")
     if openai_key:
         try:
             from .openai_quiz import generate_with_openai
@@ -49,7 +50,7 @@ def generate_quiz_smart(text: str, num_questions: int = 10, grade: str = "", sub
             print(f"OpenAI generation failed: {e}")
     
     # Try Gemini as secondary fallback
-    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    gemini_key = get_env("GEMINI_API_KEY") or get_env("GOOGLE_API_KEY")
     if gemini_key:
         try:
             result = _generate_with_gemini(text, num_questions, grade, subject, gemini_key)
@@ -59,7 +60,7 @@ def generate_quiz_smart(text: str, num_questions: int = 10, grade: str = "", sub
             print(f"Gemini generation failed: {e}")
     
     # Try Qwen2.5 Local LLM if enabled
-    if os.getenv("ENABLE_LOCAL_LLM") == "1":
+    if get_env("ENABLE_LOCAL_LLM") == "1":
         try:
             from .arabic_nlp import is_llm_available
             if is_llm_available():
