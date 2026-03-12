@@ -39,9 +39,9 @@
 
 ### AI Models
 
-1. **Primary**: OpenAI GPT (gpt-5-mini/gpt-5-nano)
-2. **Secondary**: Google Gemini
-3. **Local Offline**: Qwen2.5-1.5B-Instruct (اختياري)
+1. **Primary**: OpenAI GPT (`gpt-5-mini`) — النموذج الأساسي للتوليد
+2. **Secondary**: Google Gemini (`gemini-2.0-flash-lite`) — نموذج احتياطي عند تعذّر OpenAI
+3. **Local Offline**: Qwen2.5-1.5B-Instruct (اختياري، ~3GB) — يُفعّل بـ `ENABLE_LOCAL_LLM=1`
 
 ### Arabic NLP Features
 
@@ -187,51 +187,75 @@ python run.py
 ```
 iraq_edu_ai_assistant/
 │
-├── app/                          # الحزمة الرئيسية
-│   ├── __init__.py              # إعداد التطبيق
-│   ├── routes.py                # المسارات والواجهات
-│   ├── db.py                    # قاعدة البيانات
+├── run.py                        # نقطة بدء التشغيل (Flask dev server)
+├── requirements.txt              # تبعيات pip لجميع المكتبات
+├── environment.yml               # ملف بيئة Conda
+├── .env.example                  # نموذج لملف الإعدادات (مفاتيح API)
+├── .env                          # الإعدادات الفعلية ⚠️ لا تشاركه!
+├── .gitignore                    # الملفات المستثناة من Git
+├── README.md                     # هذا الملف — دليل المشروع
+├── Details.md                    # الدليل التفصيلي الكامل بالعربية
+├── Details.pdf                   # نسخة PDF من الدليل التفصيلي
+│
+├── app/                          # ═══ الحزمة الرئيسية للتطبيق ═══
+│   ├── __init__.py               # إعداد Flask: تحميل .env، تهيئة DB، تسجيل المسارات
+│   ├── routes.py                 # جميع المسارات (API + صفحات): معلم، طالب، مختبر، PDF
+│   ├── db.py                     # عمليات قاعدة البيانات: مستخدمين، اختبارات، تقدم، إحصائيات
 │   │
-│   ├── services/                # الخدمات الذكية
-│   │   ├── arabic_nlp/         # معالجة اللغة العربية
-│   │   ├── quiz_generator.py  # توليد الأسئلة (NLP)
-│   │   ├── openai_quiz.py     # توليد الأسئلة (AI)
-│   │   ├── lesson_planner.py  # خطط الدروس
-│   │   ├── study_planner.py   # جداول الدراسة
-│   │   ├── reading_analyzer.py # تحليل النصوص
-│   │   ├── pdf_export.py      # تصدير PDF
-│   │   ├── file_extractor.py  # استخراج الملفات
-│   │   └── auth.py            # المصادقة
+│   ├── services/                 # ═══ الخدمات الذكية ═══
+│   │   │
+│   │   ├── ai_quiz.py            # المُنسّق الذكي لتوليد الأسئلة (OpenAI → Gemini → Qwen → NLP)
+│   │   ├── openai_quiz.py        # توليد الأسئلة عبر OpenAI مع تخزين مؤقت وتقطيع ذكي
+│   │   ├── quiz_generator.py     # توليد الأسئلة بتحليل TF-IDF (بدون API)
+│   │   ├── openai_analysis.py    # تحليل صعوبة النصوص بالذكاء الاصطناعي (OpenAI + Gemini)
+│   │   ├── reading_analyzer.py   # تحليل صعوبة النص العربي (7 عوامل لغوية)
+│   │   ├── lesson_planner.py     # بناء خطط الدروس (3 أنواع: شرح، مسائل، قراءة)
+│   │   ├── study_planner.py      # خطط مذاكرة بمراجعة متباعدة حسب المادة
+│   │   ├── adaptive_quiz.py      # محرك الاختبار التكيفي مع نقاط وشارات وسلاسل
+│   │   ├── file_extractor.py     # استخراج النصوص من PDF/Word/TXT مع إصلاح النص العربي
+│   │   ├── pdf_export.py         # تصدير الخطط والاختبارات لـ PDF (ReportLab)
+│   │   ├── auth.py               # نظام المصادقة: تسجيل دخول، bcrypt، أدوار
+│   │   ├── arabic_nlp_legacy.py  # واجهة NLP القديمة (للتوافق)
+│   │   │
+│   │   └── arabic_nlp/           # ═══ حزمة معالجة اللغة العربية ═══
+│   │       ├── __init__.py       # تصدير جميع الوظائف + تحميل كسول للمكتبات الثقيلة
+│   │       ├── core.py           # تطبيع النص، تقسيم الجمل، التقطيع (Tokenization)
+│   │       ├── stopwords.py      # قائمة كلمات التوقف العربية (200+ كلمة مصنّفة)
+│   │       ├── morphology.py     # التحليل الصرفي: استخراج الجذور والأوزان (CAMeL Tools)
+│   │       ├── pos_tagger.py     # تحديد أقسام الكلام (اسم/فعل/حرف/صفة)
+│   │       ├── patterns.py       # أنماط نحوية لتوليد الأسئلة (تعريف، سبب/نتيجة، مقارنة)
+│   │       ├── embeddings.py     # تضمينات الكلمات (AraVec) للتشابه الدلالي
+│   │       └── generative.py     # توليد الأسئلة بنموذج Qwen2.5 المحلي
 │   │
-│   ├── templates/              # صفحات HTML
-│   │   ├── base.html
-│   │   ├── index.html
-│   │   ├── login.html
-│   │   ├── signup.html
-│   │   ├── dashboard.html
-│   │   ├── teacher.html
-│   │   ├── student.html
-│   │   └── lab.html
+│   ├── templates/                # ═══ صفحات HTML (Jinja2 + Bootstrap RTL) ═══
+│   │   ├── base.html             # القالب الأساسي: الشريط العلوي، التنبيهات، الفوتر
+│   │   ├── index.html            # الصفحة الرئيسية: بطاقات الأوضاع + المنهج
+│   │   ├── login.html            # صفحة تسجيل الدخول
+│   │   ├── signup.html           # صفحة إنشاء حساب جديد (معلم/طالب)
+│   │   ├── dashboard.html        # لوحة التقدم والإحصائيات
+│   │   ├── teacher.html          # وضع الاستاذ: خطة درس + توليد أسئلة + تصدير
+│   │   ├── student.html          # وضع الطالب: خطة مذاكرة + تحليل نص + رفع ملف
+│   │   └── lab.html              # مختبر الحاسوب: اختبار تفاعلي بمؤقت ونقاط وشارات
 │   │
-│   ├── static/                 # الملفات الثابتة
+│   ├── static/                   # ═══ الملفات الثابتة ═══
 │   │   ├── css/
+│   │   │   └── style.css         # التنسيقات المخصصة (خط Cairo، بطاقات، رقائق)
 │   │   └── js/
+│   │       └── main.js           # دوال مشتركة: escapeHtml، setBusy، toast
 │   │
-│   └── data/                   # البيانات
-│       ├── computer_lab_questions.json  # 100 سؤال
-│       ├── curriculum_seed.json
+│   └── data/                     # ═══ البيانات ═══
+│       ├── computer_lab_questions.json  # بنك أسئلة مختبر الحاسوب (100 سؤال، 3 مستويات)
+│       ├── curriculum_seed.json         # بيانات المنهج: الصفوف والمواد والتصنيفات
 │       ├── resources/
-│       └── models/
+│       │   └── arabic_frequency.json    # تردد الكلمات العربية لتحليل الصعوبة
+│       └── models/                      # النماذج المحلية (تُحمّل عند الحاجة)
+│           ├── aravec/                  # تضمينات AraVec للتشابه الدلالي
+│           ├── arat5/                   # نموذج AraT5 (اختياري)
+│           └── qwen/                    # نموذج Qwen2.5-1.5B-Instruct المحلي
 │
-├── instance/                    # قاعدة البيانات
-│   └── app.sqlite3
-│
-├── run.py                       # نقطة البداية
-├── environment.yml              # تبعيات Conda
-├── requirements.txt             # تبعيات pip
-├── .env.example                 # قالب الإعدادات
-├── .env                         # الإعدادات الفعلية (لا تشاركه!)
-└── README.md                    # هذا الملف
+└── instance/                     # ═══ بيانات وقت التشغيل (لا تُرفع لـ Git) ═══
+    ├── app.sqlite3               # قاعدة بيانات SQLite (تُنشأ تلقائياً)
+    └── cache/                    # التخزين المؤقت لنتائج API (diskcache)
 ```
 
 ---

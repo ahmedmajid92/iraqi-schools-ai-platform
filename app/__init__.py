@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from .db import init_db
 
 def create_app() -> Flask:
-    load_dotenv()
+    load_dotenv(override=True)
 
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
